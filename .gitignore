@@ -1,0 +1,23 @@
+# React and Node.js
+**/node_modules/
+frontend/dist/
+
+# Environment files and secrets
+.env
+.env.*
+!.env.example
+**/.env
+**/.env.*
+!**/.env.example
+
+# Java and Spring Boot
+**/target/
+**/*.class
+
+# Local configuration
+**/application-local.properties
+
+# IDE and logs
+.vscode/
+.idea/
+*.log
