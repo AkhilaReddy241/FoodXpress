@@ -1,4 +1,3 @@
-
 package com.example.FoodXpress_backend.service;
 
 import com.example.FoodXpress_backend.dto.FoodItemResponse;
@@ -14,11 +13,13 @@ public class FoodItemService {
 
     private final FoodItemRepository foodItemRepository;
 
-    public FoodItemService(FoodItemRepository foodItemRepository) {
+    public FoodItemService(
+            FoodItemRepository foodItemRepository) {
         this.foodItemRepository = foodItemRepository;
     }
 
-    public List<FoodItemResponse> getMenuByRestaurant(Long restaurantId) {
+    public List<FoodItemResponse> getMenuByRestaurant(
+            Long restaurantId) {
 
         List<FoodItem> foodItems =
                 foodItemRepository
@@ -33,7 +34,8 @@ public class FoodItemService {
                         item.getDescription(),
                         item.getCategory(),
                         item.getPrice(),
-                        item.getImageUrl()
+                        item.getImageUrl(),
+                        item.isVegetarian()
                 ))
                 .toList();
     }

@@ -1,4 +1,3 @@
-
 import {
   BrowserRouter,
   Routes,
@@ -18,26 +17,29 @@ import RestaurantProfile from "./pages/RestaurantProfile.jsx";
 import CustomerRegister from "./pages/customer/CustomerRegister.jsx";
 import CustomerLogin from "./pages/customer/CustomerLogin.jsx";
 import CustomerHome from "./pages/customer/CustomerHome.jsx";
+import CustomerRestaurants from "./pages/customer/CustomerRestaurants.jsx";
 import CustomerMenu from "./pages/customer/CustomerMenu.jsx";
 import CustomerCart from "./pages/customer/CustomerCart.jsx";
 import CustomerOrders from "./pages/customer/CustomerOrders.jsx";
 import CustomerProfile from "./pages/customer/CustomerProfile.jsx";
 import CustomerAddresses from "./pages/customer/CustomerAddresses.jsx";
+import CustomerHelp from "./pages/customer/CustomerHelp.jsx";
 
-// Route protection
+// Components
 import ProtectedRoute from "./components/ProtectedRoute.jsx";
+import CustomerHelpButton from "./components/CustomerHelpButton.jsx";
 
 function App() {
   return (
     <BrowserRouter>
       <Routes>
-        {/* Default page */}
+        {/* Default route */}
         <Route
           path="/"
           element={<Navigate to="/customer/home" replace />}
         />
 
-        {/* Restaurant routes — preserved */}
+        {/* Restaurant routes */}
         <Route
           path="/restaurant/register"
           element={<RestaurantRegister />}
@@ -72,6 +74,16 @@ function App() {
         <Route
           path="/customer/home"
           element={<CustomerHome />}
+        />
+
+        <Route
+          path="/customer/restaurants"
+          element={<CustomerRestaurants />}
+        />
+
+        <Route
+          path="/customer/help"
+          element={<CustomerHelp />}
         />
 
         <Route
@@ -136,6 +148,9 @@ function App() {
           element={<Navigate to="/customer/home" replace />}
         />
       </Routes>
+
+      {/* Floating Help button on customer pages */}
+      <CustomerHelpButton />
     </BrowserRouter>
   );
 }

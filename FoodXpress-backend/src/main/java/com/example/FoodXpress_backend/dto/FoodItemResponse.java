@@ -6,6 +6,7 @@ public record FoodItemResponse(
         String description,
         String category,
         double price,
-        String imageUrl
+        String imageUrl,
+        boolean vegetarian
 ) {
 }

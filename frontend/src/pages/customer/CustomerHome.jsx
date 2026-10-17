@@ -301,9 +301,12 @@ function CustomerHome() {
                 🏠 Home
               </a>
 
-              <a href="#restaurants" className="nav-link text-white">
-                🍴 Restaurants
-              </a>
+             <Link
+  to="/customer/restaurants"
+  className="nav-link text-white"
+>
+  🍴 Restaurants
+</Link>
 
               <button
                 type="button"

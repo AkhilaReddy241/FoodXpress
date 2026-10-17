@@ -28,6 +28,10 @@ public class FoodItem {
     @Column(nullable = false)
     private boolean available = true;
 
+    // True means vegetarian; false means non-vegetarian.
+    @Column(nullable = false, columnDefinition = "boolean default false")
+    private boolean vegetarian = false;
+
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
     @JoinColumn(name = "restaurant_id", nullable = false)
     private Restaurant restaurant;
@@ -50,6 +54,7 @@ public class FoodItem {
         this.imageUrl = imageUrl;
         this.restaurant = restaurant;
         this.available = true;
+        this.vegetarian = false;
     }
 
     public Long getId() {
@@ -102,6 +107,14 @@ public class FoodItem {
 
     public void setAvailable(boolean available) {
         this.available = available;
+    }
+
+    public boolean isVegetarian() {
+        return vegetarian;
+    }
+
+    public void setVegetarian(boolean vegetarian) {
+        this.vegetarian = vegetarian;
     }
 
     public Restaurant getRestaurant() {
