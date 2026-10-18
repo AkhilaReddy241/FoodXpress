@@ -19,7 +19,10 @@ import org.springframework.web.server.ResponseStatusException;
 @RestController
 @RequestMapping("/api/customers")
 @CrossOrigin(
-    origins = "http://localhost:5173",
+    origins = {
+        "http://localhost:5173",
+        "https://food-xpress-rust.vercel.app"
+    },
     allowCredentials = "true"
 )
 public class CustomerController {
