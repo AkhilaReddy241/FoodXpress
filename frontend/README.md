@@ -4,12 +4,12 @@
 
 1. Install Node.js 18+.
 2. From this folder run `npm install`.
-3. Start the Spring Boot backend on `http://localhost:8080` (see the backend README).
+3. Start the Spring Boot backend on `https://foodxpress-fmpb.onrender.com` (see the backend README).
 4. Run `npm run dev` and open the Vite URL printed in the terminal (normally `http://localhost:5173`).
 
 ## Backend URL
 
-By default, the app calls `http://localhost:8080`. For a deployed backend, create a `.env` file in this folder with:
+By default, the app calls `https://foodxpress-fmpb.onrender.com`. For a deployed backend, create a `.env` file in this folder with:
 
 ```env
 VITE_API_BASE_URL=https://your-backend-domain.example
