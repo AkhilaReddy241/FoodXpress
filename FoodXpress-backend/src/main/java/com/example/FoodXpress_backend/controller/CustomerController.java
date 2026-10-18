@@ -1,3 +1,4 @@
+
 package com.example.FoodXpress_backend.controller;
 
 import com.example.FoodXpress_backend.dto.CustomerLoginRequest;
@@ -21,7 +22,8 @@ import org.springframework.web.server.ResponseStatusException;
 @CrossOrigin(
     origins = {
         "http://localhost:5173",
-        "https://food-xpress-rust.vercel.app"
+        "https://food-xpress-rust.vercel.app",
+        "https://food-xpress-2e93gm43y-akhilareddy241.vercel.app"
     },
     allowCredentials = "true"
 )
@@ -39,11 +41,11 @@ public class CustomerController {
             @Valid @RequestBody CustomerRegisterRequest request) {
 
         CustomerRegisterResponse response =
-            customerService.register(request);
+                customerService.register(request);
 
         return ResponseEntity
-            .status(HttpStatus.CREATED)
-            .body(response);
+                .status(HttpStatus.CREATED)
+                .body(response);
     }
 
     // Log in a customer
@@ -53,7 +55,7 @@ public class CustomerController {
             HttpSession session) {
 
         CustomerLoginResponse response =
-            customerService.login(request);
+                customerService.login(request);
 
         session.setAttribute("customerId", response.id());
 
@@ -66,7 +68,7 @@ public class CustomerController {
             HttpSession session) {
 
         return customerService.getProfile(
-            getCustomerId(session)
+                getCustomerId(session)
         );
     }
 
@@ -77,8 +79,8 @@ public class CustomerController {
             HttpSession session) {
 
         return customerService.updateProfile(
-            getCustomerId(session),
-            request
+                getCustomerId(session),
+                request
         );
     }
 
@@ -89,7 +91,7 @@ public class CustomerController {
         return ResponseEntity.noContent().build();
     }
 
-    // Verify the login session
+    // Read the customer ID from the login session
     private Long getCustomerId(HttpSession session) {
         Object value = session.getAttribute("customerId");
 
@@ -98,8 +100,8 @@ public class CustomerController {
         }
 
         throw new ResponseStatusException(
-            HttpStatus.UNAUTHORIZED,
-            "Please log in first."
+                HttpStatus.UNAUTHORIZED,
+                "Please log in first."
         );
     }
 }

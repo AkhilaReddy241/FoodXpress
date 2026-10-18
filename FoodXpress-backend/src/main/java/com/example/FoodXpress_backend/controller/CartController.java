@@ -4,6 +4,8 @@ package com.example.FoodXpress_backend.controller;
 import com.example.FoodXpress_backend.dto.AddCartItemRequest;
 import com.example.FoodXpress_backend.dto.CartResponse;
 import com.example.FoodXpress_backend.dto.UpdateCartItemRequest;
+import com.example.FoodXpress_backend.dto.CouponRequest;
+import com.example.FoodXpress_backend.dto.CouponResponse;
 import com.example.FoodXpress_backend.service.CartService;
 
 import jakarta.servlet.http.HttpSession;
@@ -14,13 +16,14 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.server.ResponseStatusException;
 
-import com.example.FoodXpress_backend.dto.CouponRequest;
-import com.example.FoodXpress_backend.dto.CouponResponse;
-
 @RestController
 @RequestMapping("/api/cart")
 @CrossOrigin(
-    origins = "http://localhost:5173",
+    origins = {
+        "http://localhost:5173",
+        "https://food-xpress-rust.vercel.app",
+        "https://food-xpress-2e93gm43y-akhilareddy241.vercel.app"
+    },
     allowCredentials = "true"
 )
 public class CartController {
@@ -31,24 +34,29 @@ public class CartController {
         this.cartService = cartService;
     }
 
+    // Get the customer's cart
     @GetMapping
     public CartResponse getCart(HttpSession session) {
         return cartService.getCart(getCustomerId(session));
     }
 
+    // Add an item to the cart
     @PostMapping("/items")
     public ResponseEntity<CartResponse> addItem(
             @Valid @RequestBody AddCartItemRequest request,
             HttpSession session) {
 
         CartResponse cart = cartService.addItem(
-            getCustomerId(session),
-            request
+                getCustomerId(session),
+                request
         );
 
-        return ResponseEntity.status(HttpStatus.CREATED).body(cart);
+        return ResponseEntity
+                .status(HttpStatus.CREATED)
+                .body(cart);
     }
 
+    // Update a cart item
     @PutMapping("/items/{cartItemId}")
     public CartResponse updateItem(
             @PathVariable Long cartItemId,
@@ -56,28 +64,43 @@ public class CartController {
             HttpSession session) {
 
         return cartService.updateItem(
-            getCustomerId(session),
-            cartItemId,
-            request
+                getCustomerId(session),
+                cartItemId,
+                request
         );
     }
 
+    // Remove one item from the cart
     @DeleteMapping("/items/{cartItemId}")
     public CartResponse removeItem(
             @PathVariable Long cartItemId,
             HttpSession session) {
 
         return cartService.removeItem(
-            getCustomerId(session),
-            cartItemId
+                getCustomerId(session),
+                cartItemId
         );
     }
 
+    // Clear the cart
     @DeleteMapping
     public CartResponse clearCart(HttpSession session) {
         return cartService.clearCart(getCustomerId(session));
     }
 
+    // Apply a coupon
+    @PostMapping("/coupon")
+    public CouponResponse applyCoupon(
+            @Valid @RequestBody CouponRequest request,
+            HttpSession session) {
+
+        return cartService.applyCoupon(
+                getCustomerId(session),
+                request
+        );
+    }
+
+    // Read the customer ID from the login session
     private Long getCustomerId(HttpSession session) {
         Object customerId = session.getAttribute("customerId");
 
@@ -86,22 +109,8 @@ public class CartController {
         }
 
         throw new ResponseStatusException(
-            HttpStatus.UNAUTHORIZED,
-            "Please log in before accessing your cart."
+                HttpStatus.UNAUTHORIZED,
+                "Please log in before accessing your cart."
         );
     }
-
-
-    @PostMapping("/coupon")
-    public CouponResponse applyCoupon(
-            @Valid @RequestBody CouponRequest request,
-            HttpSession session) {
-
-        return cartService.applyCoupon(
-            getCustomerId(session),
-            request
-        );
-    }
-
-
 }

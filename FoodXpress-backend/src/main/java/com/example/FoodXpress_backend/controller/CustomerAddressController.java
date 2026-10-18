@@ -17,7 +17,11 @@ import java.util.List;
 @RestController
 @RequestMapping("/api/customers/addresses")
 @CrossOrigin(
-    origins = "http://localhost:5173",
+    origins = {
+        "http://localhost:5173",
+        "https://food-xpress-rust.vercel.app",
+        "https://food-xpress-2e93gm43y-akhilareddy241.vercel.app"
+    },
     allowCredentials = "true"
 )
 public class CustomerAddressController {
@@ -26,45 +30,61 @@ public class CustomerAddressController {
 
     public CustomerAddressController(
             CustomerAddressService addressService) {
+
         this.addressService = addressService;
     }
 
+    // Get the customer's addresses
     @GetMapping
     public List<CustomerAddressResponse> getAddresses(
             HttpSession session) {
-        return addressService.getAddresses(getCustomerId(session));
+
+        return addressService.getAddresses(
+                getCustomerId(session)
+        );
     }
 
+    // Add an address
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
     public CustomerAddressResponse addAddress(
             @Valid @RequestBody CustomerAddressRequest request,
             HttpSession session) {
+
         return addressService.addAddress(
-            getCustomerId(session), request
+                getCustomerId(session),
+                request
         );
     }
 
+    // Update an address
     @PutMapping("/{addressId}")
     public CustomerAddressResponse updateAddress(
             @PathVariable Long addressId,
             @Valid @RequestBody CustomerAddressRequest request,
             HttpSession session) {
+
         return addressService.updateAddress(
-            getCustomerId(session), addressId, request
+                getCustomerId(session),
+                addressId,
+                request
         );
     }
 
+    // Delete an address
     @DeleteMapping("/{addressId}")
     @ResponseStatus(HttpStatus.NO_CONTENT)
     public void deleteAddress(
             @PathVariable Long addressId,
             HttpSession session) {
+
         addressService.deleteAddress(
-            getCustomerId(session), addressId
+                getCustomerId(session),
+                addressId
         );
     }
 
+    // Read the customer ID from the login session
     private Long getCustomerId(HttpSession session) {
         Object value = session.getAttribute("customerId");
 
@@ -73,8 +93,8 @@ public class CustomerAddressController {
         }
 
         throw new ResponseStatusException(
-            HttpStatus.UNAUTHORIZED,
-            "Please log in first."
+                HttpStatus.UNAUTHORIZED,
+                "Please log in first."
         );
     }
 }

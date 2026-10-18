@@ -1,3 +1,4 @@
+
 package com.example.FoodXpress_backend.controller;
 
 import com.example.FoodXpress_backend.dto.CustomerOrderResponse;
@@ -17,7 +18,11 @@ import java.util.List;
 @RestController
 @RequestMapping("/api/orders")
 @CrossOrigin(
-    origins = "http://localhost:5173",
+    origins = {
+        "http://localhost:5173",
+        "https://food-xpress-rust.vercel.app",
+        "https://food-xpress-2e93gm43y-akhilareddy241.vercel.app"
+    },
     allowCredentials = "true"
 )
 public class CustomerOrderController {
@@ -36,19 +41,23 @@ public class CustomerOrderController {
             HttpSession session) {
 
         CustomerOrderResponse response = orderService.placeOrder(
-            getCustomerId(session),
-            request
+                getCustomerId(session),
+                request
         );
 
         return ResponseEntity
-            .status(HttpStatus.CREATED)
-            .body(response);
+                .status(HttpStatus.CREATED)
+                .body(response);
     }
 
     // Get all orders for the logged-in customer
     @GetMapping
-    public List<CustomerOrderResponse> getMyOrders(HttpSession session) {
-        return orderService.getCustomerOrders(getCustomerId(session));
+    public List<CustomerOrderResponse> getMyOrders(
+            HttpSession session) {
+
+        return orderService.getCustomerOrders(
+                getCustomerId(session)
+        );
     }
 
     // Get one order
@@ -58,8 +67,8 @@ public class CustomerOrderController {
             HttpSession session) {
 
         return orderService.getOrder(
-            getCustomerId(session),
-            orderId
+                getCustomerId(session),
+                orderId
         );
     }
 
@@ -70,8 +79,8 @@ public class CustomerOrderController {
             HttpSession session) {
 
         return orderService.markAsPaid(
-            getCustomerId(session),
-            orderId
+                getCustomerId(session),
+                orderId
         );
     }
 
@@ -84,8 +93,8 @@ public class CustomerOrderController {
         }
 
         throw new ResponseStatusException(
-            HttpStatus.UNAUTHORIZED,
-            "Please log in before accessing your orders."
+                HttpStatus.UNAUTHORIZED,
+                "Please log in before accessing your orders."
         );
     }
 }
