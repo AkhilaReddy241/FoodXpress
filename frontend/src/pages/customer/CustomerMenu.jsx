@@ -27,11 +27,11 @@ function CustomerMenu() {
       try {
         const [restaurantResponse, menuResponse] =
           await Promise.all([
-            fetch("http://localhost:8080/api/restaurants", {
+            fetch("https://foodxpress-fmpb.onrender.com/api/restaurants", {
               signal: controller.signal,
             }),
             fetch(
-              `http://localhost:8080/api/restaurants/${restaurantId}/menu`,
+              `https://foodxpress-fmpb.onrender.com/api/restaurants/${restaurantId}/menu`,
               { signal: controller.signal }
             ),
           ]);
@@ -110,7 +110,7 @@ function CustomerMenu() {
   const addToCart = async (item) => {
     try {
       const response = await fetch(
-        "http://localhost:8080/api/cart/items",
+        "https://foodxpress-fmpb.onrender.com/api/cart/items",
         {
           method: "POST",
           credentials: "include",

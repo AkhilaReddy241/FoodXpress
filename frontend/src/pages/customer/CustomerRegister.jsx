@@ -73,7 +73,7 @@ function CustomerRegister() {
       setLoading(true);
 
       const response = await fetch(
-        "http://localhost:8080/api/customers/register",
+        "https://foodxpress-fmpb.onrender.com/api/customers/register",
         {
           method: "POST",
           headers: {

@@ -32,7 +32,7 @@ function CustomerRestaurants() {
 
       try {
         const response = await fetch(
-          "http://localhost:8080/api/restaurants",
+          "https://foodxpress-fmpb.onrender.com/api/restaurants",
           { signal: controller.signal }
         );
 
@@ -54,7 +54,7 @@ function CustomerRestaurants() {
           data.map(async (restaurant) => {
             try {
               const menuResponse = await fetch(
-                `http://localhost:8080/api/restaurants/${restaurant.id}/menu`,
+                `https://foodxpress-fmpb.onrender.com/api/restaurants/${restaurant.id}/menu`,
                 { signal: controller.signal }
               );
 
@@ -204,7 +204,7 @@ function CustomerRestaurants() {
   const handleLogout = async () => {
     try {
       await fetch(
-        "http://localhost:8080/api/customers/logout",
+        "https://foodxpress-fmpb.onrender.com/api/customers/logout",
         {
           method: "POST",
           credentials: "include",

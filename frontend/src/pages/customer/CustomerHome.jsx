@@ -78,8 +78,8 @@ function CustomerHome() {
       try {
         const [restaurantResponse, cuisineResponse] =
           await Promise.all([
-            fetch("http://localhost:8080/api/restaurants"),
-            fetch("http://localhost:8080/api/restaurants/cuisines"),
+            fetch("https://foodxpress-fmpb.onrender.com/api/restaurants"),
+            fetch("https://foodxpress-fmpb.onrender.com/api/restaurants/cuisines"),
           ]);
 
         if (!restaurantResponse.ok) {
@@ -160,7 +160,7 @@ function CustomerHome() {
 
     try {
       const response = await fetch(
-        "http://localhost:8080/api/restaurants/cuisines"
+        "https://foodxpress-fmpb.onrender.com/api/restaurants/cuisines"
       );
 
       if (!response.ok) {
@@ -194,7 +194,7 @@ function CustomerHome() {
 
     try {
       const response = await fetch(
-        "http://localhost:8080/api/restaurants"
+        "https://foodxpress-fmpb.onrender.com/api/restaurants"
       );
 
       if (!response.ok) {
@@ -227,7 +227,7 @@ function CustomerHome() {
   // Customer logout
   const handleLogout = async () => {
     try {
-      await fetch("http://localhost:8080/api/customers/logout", {
+      await fetch("https://foodxpress-fmpb.onrender.com/api/customers/logout", {
         method: "POST",
         credentials: "include",
       });

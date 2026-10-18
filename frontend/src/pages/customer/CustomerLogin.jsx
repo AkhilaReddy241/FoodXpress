@@ -33,7 +33,7 @@ function CustomerLogin() {
       setLoading(true);
 
       const response = await fetch(
-        "http://localhost:8080/api/customers/login",
+        "https://foodxpress-fmpb.onrender.com/api/customers/login",
         {
           method: "POST",
           credentials: "include",

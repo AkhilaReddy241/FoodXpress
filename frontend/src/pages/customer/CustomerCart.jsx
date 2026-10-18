@@ -82,7 +82,7 @@ function CustomerCart() {
     setError("");
 
     try {
-      const response = await fetch("http://localhost:8080/api/cart", {
+      const response = await fetch("https://foodxpress-fmpb.onrender.com/api/cart", {
         method: "GET",
         credentials: "include",
       });
@@ -126,7 +126,7 @@ function CustomerCart() {
 
     try {
       const response = await fetch(
-        `http://localhost:8080/api/cart/items/${item.cartItemId}`,
+        `https://foodxpress-fmpb.onrender.com/api/cart/items/${item.cartItemId}`,
         {
           method: "PUT",
           credentials: "include",
@@ -168,7 +168,7 @@ const handleCheckout = async () => {
   setMessage("");
 
   try {
-    const response = await fetch("http://localhost:8080/api/orders", {
+    const response = await fetch("https://foodxpress-fmpb.onrender.com/api/orders", {
       method: "POST",
       credentials: "include",
       headers: {
@@ -225,7 +225,7 @@ const handleCheckout = async () => {
     setMessage("");
 
     try {
-      const response = await fetch("http://localhost:8080/api/cart", {
+      const response = await fetch("https://foodxpress-fmpb.onrender.com/api/cart", {
         method: "DELETE",
         credentials: "include",
       });

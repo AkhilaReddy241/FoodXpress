@@ -23,7 +23,7 @@ function CustomerProfile() {
     const fetchProfile = async () => {
       try {
         const response = await fetch(
-          "http://localhost:8080/api/customers/profile",
+          "https://foodxpress-fmpb.onrender.com/api/customers/profile",
           {
             method: "GET",
             credentials: "include",
@@ -93,7 +93,7 @@ function CustomerProfile() {
 
     try {
       const response = await fetch(
-        "http://localhost:8080/api/customers/profile",
+        "https://foodxpress-fmpb.onrender.com/api/customers/profile",
         {
           method: "PUT",
           credentials: "include",

@@ -42,7 +42,7 @@ function CustomerOrders() {
 
     try {
       const response = await fetch(
-        "http://localhost:8080/api/orders",
+        "https://foodxpress-fmpb.onrender.com/api/orders",
         {
           method: "GET",
           credentials: "include",
@@ -98,7 +98,7 @@ function CustomerOrders() {
 
     try {
       const response = await fetch(
-        `http://localhost:8080/api/orders/${orderId}/pay`,
+        `https://foodxpress-fmpb.onrender.com/api/orders/${orderId}/pay`,
         {
           method: "POST",
           credentials: "include",
