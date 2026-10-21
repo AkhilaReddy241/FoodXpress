@@ -10,6 +10,7 @@ import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 
 import org.springframework.http.HttpHeaders;
+import org.springframework.http.HttpMethod;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.filter.OncePerRequestFilter;
@@ -26,15 +27,42 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
     }
 
     @Override
+    protected boolean shouldNotFilter(HttpServletRequest request) {
+        String path = request.getServletPath();
+        String method = request.getMethod();
+
+        if ("OPTIONS".equalsIgnoreCase(method)) {
+            return true;
+        }
+
+        if ("POST".equalsIgnoreCase(method)
+                && ("/api/customers/login".equals(path)
+                || "/api/customers/register".equals(path))) {
+            return true;
+        }
+
+        if (HttpMethod.GET.matches(method)) {
+            return "/api/restaurants".equals(path)
+                    || path.startsWith("/api/restaurants/")
+                    || "/api/cuisines".equals(path)
+                    || path.startsWith("/api/cuisines/");
+        }
+
+        return false;
+    }
+
+    @Override
     protected void doFilterInternal(
             HttpServletRequest request,
             HttpServletResponse response,
-            FilterChain filterChain) throws ServletException, IOException {
+            FilterChain filterChain)
+            throws ServletException, IOException {
 
-        String authorizationHeader = request.getHeader(HttpHeaders.AUTHORIZATION);
+        String authorizationHeader =
+                request.getHeader(HttpHeaders.AUTHORIZATION);
 
-        if (authorizationHeader == null ||
-                !authorizationHeader.startsWith("Bearer ")) {
+        if (authorizationHeader == null
+                || !authorizationHeader.startsWith("Bearer ")) {
             filterChain.doFilter(request, response);
             return;
         }
@@ -49,11 +77,13 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                     new UsernamePasswordAuthenticationToken(
                             customerId, null, List.of());
 
-            SecurityContextHolder.getContext().setAuthentication(authentication);
+            SecurityContextHolder.getContext()
+                    .setAuthentication(authentication);
 
         } catch (RuntimeException exception) {
             SecurityContextHolder.clearContext();
-            response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
+            response.setStatus(
+                    HttpServletResponse.SC_UNAUTHORIZED);
             response.setContentType("application/json");
             response.getWriter().write(
                     "{\"message\":\"Invalid or expired JWT token\"}");
