@@ -24,7 +24,8 @@ public class SecurityConfig {
     @Bean
     public SecurityFilterChain securityFilterChain(
             HttpSecurity http,
-            JwtAuthenticationFilter jwtAuthenticationFilter) throws Exception {
+            JwtAuthenticationFilter jwtAuthenticationFilter)
+            throws Exception {
 
         http
             .cors(Customizer.withDefaults())
@@ -32,25 +33,35 @@ public class SecurityConfig {
             .formLogin(form -> form.disable())
             .httpBasic(basic -> basic.disable())
             .sessionManagement(session ->
-                session.sessionCreationPolicy(SessionCreationPolicy.STATELESS)
+                session.sessionCreationPolicy(
+                    SessionCreationPolicy.STATELESS
+                )
             )
             .authorizeHttpRequests(auth -> auth
+
                 .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
 
-                // Public customer authentication endpoints
+                // Public customer login and registration
                 .requestMatchers(
                     "/api/customers/register",
                     "/api/customers/login"
                 ).permitAll()
 
-                // Public restaurant browsing and menus
+                // Public restaurant browsing
                 .requestMatchers(
                     HttpMethod.GET,
                     "/api/restaurants",
                     "/api/restaurants/**"
                 ).permitAll()
 
-                // All other endpoints require JWT authentication
+                // Public cuisine browsing
+                .requestMatchers(
+                    HttpMethod.GET,
+                    "/api/cuisines",
+                    "/api/cuisines/**"
+                ).permitAll()
+
+                // Protect all remaining endpoints
                 .anyRequest().authenticated()
             )
             .addFilterBefore(
