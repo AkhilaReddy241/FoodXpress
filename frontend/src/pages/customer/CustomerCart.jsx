@@ -1,8 +1,8 @@
 
 import { useCallback, useEffect, useState } from "react";
-
 import { Link, useNavigate } from "react-router-dom";
 
+const API_URL = "https://foodxpress-fmpb.onrender.com/api";
 const PURPLE = "#641bc2";
 const DARK = "#351078";
 
@@ -40,16 +40,12 @@ const getDiscount = (code, subtotal) => {
   switch (code) {
     case "FOOD10":
       return subtotal >= 299 ? Math.min(subtotal * 0.1, 100) : 0;
-
     case "SAVE50":
       return subtotal >= 499 ? 50 : 0;
-
     case "WELCOME15":
       return subtotal >= 699 ? Math.min(subtotal * 0.15, 150) : 0;
-
     case "XPRESS20":
       return subtotal >= 999 ? Math.min(subtotal * 0.2, 200) : 0;
-
     default:
       return 0;
   }
@@ -57,8 +53,8 @@ const getDiscount = (code, subtotal) => {
 
 function CustomerCart() {
   const navigate = useNavigate();
-  const [couponResult, setCouponResult] = useState(null);
 
+  const [couponResult, setCouponResult] = useState(null);
   const [cart, setCart] = useState({
     items: [],
     totalQuantity: 0,
@@ -77,20 +73,54 @@ function CustomerCart() {
   const customerName =
     sessionStorage.getItem("customerName") || "Food Lover";
 
+  const getAuthHeaders = (includeJson = false) => {
+    const token = sessionStorage.getItem("customerToken");
+
+    if (!token) {
+      navigate("/customer/login");
+      return null;
+    }
+
+    return {
+      Authorization: `Bearer ${token}`,
+      ...(includeJson ? { "Content-Type": "application/json" } : {}),
+    };
+  };
+
+  const handleUnauthorized = (response) => {
+    if (response.status === 401 || response.status === 403) {
+      sessionStorage.removeItem("customerToken");
+      sessionStorage.removeItem("customerLoggedIn");
+      sessionStorage.removeItem("customerName");
+      sessionStorage.removeItem("customerEmail");
+      navigate("/customer/login");
+      return true;
+    }
+
+    return false;
+  };
+
   const loadCart = useCallback(async () => {
     setLoading(true);
     setError("");
 
+    const token = sessionStorage.getItem("customerToken");
+
+    if (!token) {
+      setLoading(false);
+      navigate("/customer/login");
+      return;
+    }
+
     try {
-      const response = await fetch("https://foodxpress-fmpb.onrender.com/api/cart", {
+      const response = await fetch(`${API_URL}/cart`, {
         method: "GET",
-        credentials: "include",
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
       });
 
-      if (response.status === 401) {
-        navigate("/customer/login");
-        return;
-      }
+      if (handleUnauthorized(response)) return;
 
       if (!response.ok) {
         throw new Error("Unable to load your cart.");
@@ -106,7 +136,8 @@ function CustomerCart() {
     } catch (err) {
       console.error("Cart loading error:", err);
       setError(
-        "Unable to load your cart. Check that the backend is running and you are logged in."
+        err.message ||
+          "Unable to load your cart. Check that the backend is running."
       );
     } finally {
       setLoading(false);
@@ -120,25 +151,24 @@ function CustomerCart() {
   const updateQuantity = async (item, quantity) => {
     if (quantity < 1 || quantity > 99) return;
 
+    const headers = getAuthHeaders(true);
+    if (!headers) return;
+
     setBusyItem(item.cartItemId);
     setError("");
     setMessage("");
 
     try {
       const response = await fetch(
-        `https://foodxpress-fmpb.onrender.com/api/cart/items/${item.cartItemId}`,
+        `${API_URL}/cart/items/${item.cartItemId}`,
         {
           method: "PUT",
-          credentials: "include",
-          headers: { "Content-Type": "application/json" },
+          headers,
           body: JSON.stringify({ quantity }),
         }
       );
 
-      if (response.status === 401) {
-        navigate("/customer/login");
-        return;
-      }
+      if (handleUnauthorized(response)) return;
 
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}));
@@ -162,81 +192,28 @@ function CustomerCart() {
     }
   };
 
-  
-const handleCheckout = async () => {
-  setError("");
-  setMessage("");
+  const removeItem = async (item) => {
+    const headers = getAuthHeaders();
+    if (!headers) return;
 
-  try {
-    const response = await fetch("https://foodxpress-fmpb.onrender.com/api/orders", {
-      method: "POST",
-      credentials: "include",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        couponCode: appliedCoupon || null,
-      }),
-    });
-
-    const data = await response.json().catch(() => ({}));
-
-    if (response.status === 401) {
-      navigate("/customer/login");
-      return;
-    }
-
-    if (!response.ok) {
-      throw new Error(
-        data.detail || data.message || "Unable to place your order."
-      );
-    }
-
-    setCart({
-      items: [],
-      totalQuantity: 0,
-      totalAmount: 0,
-    });
-
-    setAppliedCoupon("");
-    setCouponInput("");
-    setCouponResult(null);
-    setCouponMessage("");
-
-    setMessage(
-      `Order #${data.orderId} created successfully. Status: ${data.status}. Payment is pending.`
-    );
-  } catch (error) {
-    console.error("Checkout error:", error);
-    setError(error.message || "Unable to place your order.");
-  }
-};
-
-  const clearCart = async () => {
-    if (
-      cart.items.length === 0 ||
-      !window.confirm("Are you sure you want to clear your cart?")
-    ) {
-      return;
-    }
-
-    setClearing(true);
+    setBusyItem(item.cartItemId);
     setError("");
     setMessage("");
 
     try {
-      const response = await fetch("https://foodxpress-fmpb.onrender.com/api/cart", {
-        method: "DELETE",
-        credentials: "include",
-      });
+      const response = await fetch(
+        `${API_URL}/cart/items/${item.cartItemId}`,
+        {
+          method: "DELETE",
+          headers,
+        }
+      );
 
-      if (response.status === 401) {
-        navigate("/customer/login");
-        return;
-      }
+      if (handleUnauthorized(response)) return;
 
       if (!response.ok) {
-        throw new Error("Unable to clear your cart.");
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.message || "Unable to remove item.");
       }
 
       const data = await response.json();
@@ -249,6 +226,102 @@ const handleCheckout = async () => {
 
       setAppliedCoupon("");
       setCouponInput("");
+      setCouponResult(null);
+      setCouponMessage("");
+      setMessage("Item removed from your cart.");
+    } catch (err) {
+      console.error("Remove item error:", err);
+      setError(err.message || "Unable to remove item.");
+    } finally {
+      setBusyItem(null);
+    }
+  };
+
+  const handleCheckout = async () => {
+    const headers = getAuthHeaders(true);
+    if (!headers) return;
+
+    setError("");
+    setMessage("");
+
+    try {
+      const response = await fetch(`${API_URL}/orders`, {
+        method: "POST",
+        headers,
+        body: JSON.stringify({
+          couponCode: appliedCoupon || null,
+        }),
+      });
+
+      if (handleUnauthorized(response)) return;
+
+      const data = await response.json().catch(() => ({}));
+
+      if (!response.ok) {
+        throw new Error(
+          data.detail || data.message || "Unable to place your order."
+        );
+      }
+
+      setCart({
+        items: [],
+        totalQuantity: 0,
+        totalAmount: 0,
+      });
+
+      setAppliedCoupon("");
+      setCouponInput("");
+      setCouponResult(null);
+      setCouponMessage("");
+
+      setMessage(
+        `Order #${data.orderId} created successfully. Status: ${data.status}. Payment is pending.`
+      );
+    } catch (err) {
+      console.error("Checkout error:", err);
+      setError(err.message || "Unable to place your order.");
+    }
+  };
+
+  const clearCart = async () => {
+    if (
+      cart.items.length === 0 ||
+      !window.confirm("Are you sure you want to clear your cart?")
+    ) {
+      return;
+    }
+
+    const headers = getAuthHeaders();
+    if (!headers) return;
+
+    setClearing(true);
+    setError("");
+    setMessage("");
+
+    try {
+      const response = await fetch(`${API_URL}/cart`, {
+        method: "DELETE",
+        headers,
+      });
+
+      if (handleUnauthorized(response)) return;
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.message || "Unable to clear your cart.");
+      }
+
+      const data = await response.json();
+
+      setCart({
+        items: Array.isArray(data.items) ? data.items : [],
+        totalQuantity: data.totalQuantity || 0,
+        totalAmount: Number(data.totalAmount || 0),
+      });
+
+      setAppliedCoupon("");
+      setCouponInput("");
+      setCouponResult(null);
       setCouponMessage("");
       setMessage("Your cart has been cleared.");
     } catch (err) {
@@ -259,9 +332,8 @@ const handleCheckout = async () => {
     }
   };
 
-  const applyCoupon = () => {
+  const applyCoupon = async () => {
     const code = couponInput.trim().toUpperCase();
-
     const coupon = COUPONS.find((item) => item.code === code);
 
     if (!code) {
@@ -296,37 +368,57 @@ const handleCheckout = async () => {
       return;
     }
 
-    setAppliedCoupon(code);
-    setCouponMessage(`${code} applied successfully!`);
-    setMessage("");
+    // Ask the backend to validate/apply the coupon too.
+    const headers = getAuthHeaders(true);
+    if (!headers) return;
+
+    try {
+      const response = await fetch(`${API_URL}/cart/coupon`, {
+        method: "POST",
+        headers,
+        body: JSON.stringify({ couponCode: code }),
+      });
+
+      if (handleUnauthorized(response)) return;
+
+      if (!response.ok) {
+        const data = await response.json().catch(() => ({}));
+        throw new Error(data.message || "Unable to apply coupon.");
+      }
+
+      const result = await response.json().catch(() => null);
+      setCouponResult(result);
+      setAppliedCoupon(code);
+      setCouponMessage(`${code} applied successfully!`);
+      setMessage("");
+    } catch (err) {
+      console.error("Coupon error:", err);
+      setCouponMessage(
+        err.message || "Unable to apply coupon. Please try again."
+      );
+      setAppliedCoupon("");
+    }
   };
 
   const discountAmount = appliedCoupon
     ? getDiscount(appliedCoupon, cart.totalAmount)
     : 0;
 
-  const finalTotal = Math.max(
-    0,
-    cart.totalAmount - discountAmount
-  );
+  const finalTotal = Math.max(0, cart.totalAmount - discountAmount);
 
   return (
     <div className="min-vh-100" style={{ backgroundColor: "#faf8ff" }}>
-      {/* NAVBAR */}
       <nav
         className="navbar navbar-dark py-2"
-        style={{
-          background: "linear-gradient(100deg, #51208f, #381071)",
-        }}
+        style={{ background: "linear-gradient(100deg, #51208f, #381071)" }}
       >
         <div className="container-fluid px-3 px-xl-5">
           <Link
             to="/customer/home"
             className="navbar-brand d-flex align-items-center gap-2"
           >
-            
             <span className="fw-bold fs-4">
-               ♨ Food <span style={{ color: "#d9a2ff" }}>Xpress</span>
+              ♨ Food <span style={{ color: "#d9a2ff" }}>Xpress</span>
             </span>
           </Link>
 
@@ -346,7 +438,6 @@ const handleCheckout = async () => {
       </nav>
 
       <main className="container py-4 py-lg-5">
-        {/* PAGE HEADING */}
         <div className="d-flex flex-wrap justify-content-between align-items-center gap-3 mb-4">
           <div>
             <h1 className="fw-bold mb-1" style={{ color: DARK }}>
@@ -368,7 +459,6 @@ const handleCheckout = async () => {
           )}
         </div>
 
-        {/* MESSAGES */}
         {message && (
           <div className="alert alert-success alert-dismissible" role="status">
             {message}
@@ -393,7 +483,6 @@ const handleCheckout = async () => {
           </div>
         )}
 
-        {/* LOADING */}
         {loading ? (
           <div className="text-center py-5">
             <div
@@ -406,18 +495,14 @@ const handleCheckout = async () => {
             <p className="text-secondary mt-3">Loading your cart...</p>
           </div>
         ) : cart.items.length === 0 ? (
-          /* EMPTY CART */
           <div className="card border-0 rounded-4 shadow-sm text-center p-4 p-md-5">
             <div style={{ fontSize: 75 }}>🛒</div>
-
             <h2 className="fw-bold mt-3" style={{ color: DARK }}>
               Your cart is empty!
             </h2>
-
             <p className="text-secondary">
               Delicious food is waiting for you. Let's find something tasty.
             </p>
-
             <div>
               <button
                 className="btn text-white rounded-pill px-4 py-2 mt-2"
@@ -430,7 +515,6 @@ const handleCheckout = async () => {
           </div>
         ) : (
           <div className="row g-4">
-            {/* CART ITEMS */}
             <div className="col-12 col-lg-8">
               <div className="card border-0 rounded-4 shadow-sm mb-4">
                 <div className="card-header bg-white border-0 p-4">
@@ -452,10 +536,7 @@ const handleCheckout = async () => {
                             alt={item.foodName}
                             className="img-fluid rounded-3 w-100"
                             loading="lazy"
-                            style={{
-                              height: 115,
-                              objectFit: "cover",
-                            }}
+                            style={{ height: 115, objectFit: "cover" }}
                           />
                         ) : (
                           <div
@@ -477,11 +558,9 @@ const handleCheckout = async () => {
                             <h5 className="fw-bold mb-1" style={{ color: DARK }}>
                               {item.foodName}
                             </h5>
-
                             <p className="small text-secondary mb-2">
                               {item.restaurantName}
                             </p>
-
                             <div className="fw-bold" style={{ color: PURPLE }}>
                               {formatPrice(item.unitPrice)}
                             </div>
@@ -498,7 +577,11 @@ const handleCheckout = async () => {
                         </div>
 
                         <div className="d-flex align-items-center gap-3 mt-3">
-                          <div className="btn-group" role="group" aria-label="Quantity controls">
+                          <div
+                            className="btn-group"
+                            role="group"
+                            aria-label="Quantity controls"
+                          >
                             <button
                               className="btn btn-sm btn-outline-secondary"
                               disabled={
@@ -551,7 +634,6 @@ const handleCheckout = async () => {
                     >
                       ← Continue Shopping
                     </Link>
-
                     <span className="text-secondary small">
                       {cart.totalQuantity} item(s)
                     </span>
@@ -559,13 +641,11 @@ const handleCheckout = async () => {
                 </div>
               </div>
 
-              {/* COUPONS */}
               <div className="card border-0 rounded-4 shadow-sm">
                 <div className="card-body p-4">
                   <h4 className="fw-bold mb-2" style={{ color: DARK }}>
                     🎟️ Coupons & Offers
                   </h4>
-
                   <p className="small text-secondary">
                     Choose an available coupon and apply it to your order.
                   </p>
@@ -584,7 +664,6 @@ const handleCheckout = async () => {
                       onChange={(event) => setCouponInput(event.target.value)}
                       aria-label="Coupon code"
                     />
-
                     <button
                       className="btn text-white"
                       style={{ backgroundColor: PURPLE }}
@@ -626,7 +705,6 @@ const handleCheckout = async () => {
                               >
                                 {coupon.title}
                               </span>
-
                               <button
                                 className="btn btn-sm btn-outline-primary"
                                 type="button"
@@ -638,11 +716,9 @@ const handleCheckout = async () => {
                                 Select
                               </button>
                             </div>
-
                             <h6 className="fw-bold mt-3 mb-1">
                               {coupon.code}
                             </h6>
-
                             <p className="small text-secondary mb-0">
                               {coupon.description}
                             </p>
@@ -659,6 +735,7 @@ const handleCheckout = async () => {
                       onClick={() => {
                         setAppliedCoupon("");
                         setCouponInput("");
+                        setCouponResult(null);
                         setCouponMessage("Coupon removed.");
                       }}
                     >
@@ -669,9 +746,9 @@ const handleCheckout = async () => {
               </div>
             </div>
 
-            {/* BILL SUMMARY */}
             <div className="col-12 col-lg-4">
-              <div className="card border-0 rounded-4 shadow-sm sticky-lg-top"
+              <div
+                className="card border-0 rounded-4 shadow-sm sticky-lg-top"
                 style={{ top: 90 }}
               >
                 <div className="card-body p-4">
@@ -688,9 +765,7 @@ const handleCheckout = async () => {
 
                   <div className="d-flex justify-content-between mb-3">
                     <span className="text-secondary">Delivery fee</span>
-                    <span className="text-success fw-semibold">
-                      FREE
-                    </span>
+                    <span className="text-success fw-semibold">FREE</span>
                   </div>
 
                   <div className="d-flex justify-content-between mb-3">
@@ -717,12 +792,12 @@ const handleCheckout = async () => {
                   )}
 
                   <button
-  className="btn text-white fw-bold rounded-pill w-100 py-3"
-  style={{ backgroundColor: PURPLE }}
-  onClick={handleCheckout}
->
-  Proceed to Checkout →
-</button>
+                    className="btn text-white fw-bold rounded-pill w-100 py-3"
+                    style={{ backgroundColor: PURPLE }}
+                    onClick={handleCheckout}
+                  >
+                    Proceed to Checkout →
+                  </button>
 
                   <p className="text-secondary text-center small mt-3 mb-0">
                     🔒 Secure checkout

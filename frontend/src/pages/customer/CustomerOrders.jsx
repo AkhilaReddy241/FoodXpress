@@ -2,6 +2,8 @@
 import { useCallback, useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 
+const API_URL = "https://foodxpress-fmpb.onrender.com";
+
 const TRACKING_STEPS = [
   {
     status: "PAID",
@@ -35,52 +37,86 @@ function CustomerOrders() {
   const [successMessage, setSuccessMessage] = useState("");
   const [payingOrderId, setPayingOrderId] = useState(null);
 
-  // Load orders from the backend
+  // Clear expired or missing authentication.
+  const handleAuthenticationFailure = useCallback(() => {
+    sessionStorage.removeItem("customerToken");
+    sessionStorage.removeItem("customerLoggedIn");
+    sessionStorage.removeItem("customerName");
+    sessionStorage.removeItem("customerEmail");
+
+    navigate("/customer/login", {
+      replace: true,
+      state: { from: "/customer/orders" },
+    });
+  }, [navigate]);
+
+  // Load orders from the backend using the JWT token.
   const fetchOrders = useCallback(async () => {
+    const token = sessionStorage.getItem("customerToken");
+
+    if (!token) {
+      handleAuthenticationFailure();
+      setLoading(false);
+      return;
+    }
+
     setLoading(true);
     setError("");
 
     try {
-      const response = await fetch(
-        "https://foodxpress-fmpb.onrender.com/api/orders",
-        {
-          method: "GET",
-          credentials: "include",
-        }
-      );
+      const response = await fetch(`${API_URL}/api/orders`, {
+        method: "GET",
+        headers: {
+          Authorization: `Bearer ${token}`,
+          Accept: "application/json",
+        },
+      });
 
-      if (response.status === 401) {
-        navigate("/customer/login");
+      if (response.status === 401 || response.status === 403) {
+        handleAuthenticationFailure();
         return;
       }
 
       if (!response.ok) {
-        throw new Error("Unable to load your orders.");
+        throw new Error(
+          `Unable to load your orders. Server returned ${response.status}.`
+        );
       }
 
       const data = await response.json();
 
-      setOrders(Array.isArray(data) ? data : []);
+      if (!Array.isArray(data)) {
+        throw new Error("Invalid order data received from the backend.");
+      }
+
+      setOrders(data);
     } catch (err) {
       console.error("Order history error:", err);
 
       setError(
         err instanceof TypeError
-          ? "Cannot connect to the backend. Check that Spring Boot is running on port 8080 and CORS allows http://localhost:5173."
+          ? "Cannot connect to the backend. Check your internet connection and backend deployment."
           : err.message || "Unable to load orders."
       );
     } finally {
       setLoading(false);
     }
-  }, [navigate]);
+  }, [handleAuthenticationFailure]);
 
   useEffect(() => {
     fetchOrders();
   }, [fetchOrders]);
 
-  // Simulated payment for development
+  // Simulated payment for development.
   const handlePayNow = async (orderId) => {
     if (!orderId || payingOrderId !== null) {
+      return;
+    }
+
+    const token = sessionStorage.getItem("customerToken");
+
+    if (!token) {
+      handleAuthenticationFailure();
       return;
     }
 
@@ -98,17 +134,20 @@ function CustomerOrders() {
 
     try {
       const response = await fetch(
-        `https://foodxpress-fmpb.onrender.com/api/orders/${orderId}/pay`,
+        `${API_URL}/api/orders/${orderId}/pay`,
         {
           method: "POST",
-          credentials: "include",
+          headers: {
+            Authorization: `Bearer ${token}`,
+            Accept: "application/json",
+          },
         }
       );
 
       const data = await response.json().catch(() => ({}));
 
-      if (response.status === 401) {
-        navigate("/customer/login");
+      if (response.status === 401 || response.status === 403) {
+        handleAuthenticationFailure();
         return;
       }
 
@@ -130,7 +169,7 @@ function CustomerOrders() {
 
       setPaymentError(
         err instanceof TypeError
-          ? "Cannot connect to the payment API. Check that your backend is running and CORS is configured."
+          ? "Cannot connect to the payment API. Check your backend deployment and CORS configuration."
           : err.message || "Payment could not be processed."
       );
     } finally {
@@ -138,23 +177,29 @@ function CustomerOrders() {
     }
   };
 
-  // Date formatting
+  // Date formatting.
   const formatDate = (date) => {
     if (!date) {
       return "Date unavailable";
     }
 
-    return new Date(date).toLocaleString("en-IN", {
+    const parsedDate = new Date(date);
+
+    if (Number.isNaN(parsedDate.getTime())) {
+      return "Date unavailable";
+    }
+
+    return parsedDate.toLocaleString("en-IN", {
       dateStyle: "medium",
       timeStyle: "short",
     });
   };
 
-  // Currency formatting
+  // Currency formatting.
   const formatPrice = (amount) =>
     `₹${Number(amount || 0).toFixed(2)}`;
 
-  // Status badge colors
+  // Status badge colors.
   const getStatusClass = (status) => {
     switch (status) {
       case "PAID":
@@ -170,12 +215,15 @@ function CustomerOrders() {
       case "OUT_FOR_DELIVERY":
         return "bg-primary";
 
+      case "CANCELLED":
+        return "bg-secondary";
+
       default:
         return "bg-secondary";
     }
   };
 
-  // Display progress based on the order status
+  // Display order progress based on the current status.
   const renderTracking = (status) => {
     if (status === "PENDING_PAYMENT") {
       return (
@@ -213,7 +261,6 @@ function CustomerOrders() {
 
     return (
       <div>
-        {/* Progress line */}
         <div
           className="progress mb-4"
           role="progressbar"
@@ -229,7 +276,6 @@ function CustomerOrders() {
           />
         </div>
 
-        {/* Tracking stages */}
         <div className="row g-3">
           {TRACKING_STEPS.map((step, index) => {
             const completed = index <= currentIndex;
@@ -295,16 +341,18 @@ function CustomerOrders() {
   return (
     <div className="min-vh-100 bg-light">
       {/* Navigation bar */}
-      <nav className="navbar navbar-dark px-3 px-md-5 py-3"
-       style={{
+      <nav
+        className="navbar navbar-dark px-3 px-md-5 py-3"
+        style={{
           background: "linear-gradient(100deg, #51208f, #381071)",
-        }}>
+        }}
+      >
         <span
           className="navbar-brand fw-bold"
           style={{ cursor: "pointer" }}
           onClick={() => navigate("/customer/home")}
         >
-        ♨ Food Xpress
+          ♨ Food Xpress
         </span>
 
         <div className="d-flex gap-2">
@@ -362,9 +410,7 @@ function CustomerOrders() {
               className="spinner-border text-primary"
               role="status"
             >
-              <span className="visually-hidden">
-                Loading...
-              </span>
+              <span className="visually-hidden">Loading...</span>
             </div>
 
             <p className="mt-3 text-muted">
@@ -468,7 +514,6 @@ function CustomerOrders() {
 
                   {/* Order details */}
                   <div className="card-body p-3 p-md-4">
-                    {/* Tracking section */}
                     <section className="mb-4">
                       <h5 className="fw-bold mb-3">
                         Order Tracking
@@ -479,7 +524,6 @@ function CustomerOrders() {
 
                     <hr />
 
-                    {/* Food items */}
                     <h6 className="fw-bold mb-3">
                       Items Ordered
                     </h6>

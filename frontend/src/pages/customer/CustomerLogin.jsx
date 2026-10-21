@@ -2,11 +2,12 @@
 import { useState } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 
+const API_URL = "https://foodxpress-fmpb.onrender.com";
+
 function CustomerLogin() {
   const navigate = useNavigate();
   const location = useLocation();
 
-  // Return the customer to the feature they originally selected.
   const requestedDestination = location.state?.from;
 
   const redirectTo =
@@ -26,26 +27,37 @@ function CustomerLogin() {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+
+    if (loading || success) return;
+
     setError("");
     setSuccess("");
+
+    if (!email.trim() || !password) {
+      setError("Please enter your email and password.");
+      return;
+    }
 
     try {
       setLoading(true);
 
-      const response = await fetch(
-        "https://foodxpress-fmpb.onrender.com/api/customers/login",
-        {
-          method: "POST",
-          credentials: "include",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({
-            email: email.trim(),
-            password,
-          }),
-        }
-      );
+      // Clear any previous customer session before logging in again.
+      sessionStorage.removeItem("customerToken");
+      sessionStorage.removeItem("customerLoggedIn");
+      sessionStorage.removeItem("customerName");
+      sessionStorage.removeItem("customerEmail");
+
+      const response = await fetch(`${API_URL}/api/customers/login`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Accept: "application/json",
+        },
+        body: JSON.stringify({
+          email: email.trim(),
+          password,
+        }),
+      });
 
       const responseText = await response.text();
       let data = {};
@@ -64,24 +76,33 @@ function CustomerLogin() {
         );
       }
 
-      // Save display information after successful backend login.
-      // The backend session cookie remains the authentication mechanism.
+      // The backend must return a JWT token after successful login.
+      if (!data.token) {
+        throw new Error(
+          "Login response did not contain a JWT token. Please check the backend."
+        );
+      }
+
+      // Store the JWT for authenticated API requests.
+      sessionStorage.setItem("customerToken", data.token);
+
+      // Store customer information for the frontend UI.
       sessionStorage.setItem("customerLoggedIn", "true");
       sessionStorage.setItem("customerName", data.name || "");
-      sessionStorage.setItem("customerEmail", data.email || "");
+      sessionStorage.setItem("customerEmail", data.email || email.trim());
 
       setSuccess(
         `Login successful! Welcome, ${data.name || "Customer"}!`
       );
 
-      // Return to the originally requested customer page.
-      window.setTimeout(() => {
-        navigate(redirectTo, { replace: true });
-      }, 1000);
+      // Redirect after displaying the success message.
+      navigate(redirectTo, { replace: true });
     } catch (err) {
+      console.error("Customer login error:", err);
+
       if (err instanceof TypeError) {
         setError(
-          "Cannot connect to the backend. Make sure Spring Boot is running on port 8080."
+          "Cannot connect to the backend. Please check your internet connection and backend server."
         );
       } else {
         setError(
@@ -223,20 +244,16 @@ function CustomerLogin() {
               </p>
             </div>
 
-            {/* ERROR MESSAGE */}
             {error && (
               <div className="alert alert-danger py-2 small" role="alert">
                 {error}
               </div>
             )}
 
-            {/* SUCCESS MESSAGE */}
             {success && (
               <div className="alert alert-success py-2 small" role="status">
                 <strong>✓ {success}</strong>
-                <div className="mt-1">
-                  Redirecting you to continue...
-                </div>
+                <div className="mt-1">Redirecting you to continue...</div>
               </div>
             )}
 
@@ -290,8 +307,7 @@ function CustomerLogin() {
                 disabled={loading || Boolean(success)}
                 className="btn w-100 text-white fw-bold py-2"
                 style={{
-                  background:
-                    "linear-gradient(90deg, #912cf0, #7028bc)",
+                  background: "linear-gradient(90deg, #912cf0, #7028bc)",
                   border: "none",
                   borderRadius: "9px",
                 }}

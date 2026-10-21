@@ -18,20 +18,41 @@ function CustomerProfile() {
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
 
-  // Fetch profile from Spring Boot
+  // Read the JWT token saved during login.
+  const token = sessionStorage.getItem("customerToken");
+
+  // Fetch customer profile from Spring Boot.
   useEffect(() => {
     const fetchProfile = async () => {
+      if (!token) {
+        navigate("/customer/login", {
+          state: { from: "/customer/profile" },
+          replace: true,
+        });
+        return;
+      }
+
       try {
         const response = await fetch(
           "https://foodxpress-fmpb.onrender.com/api/customers/profile",
           {
             method: "GET",
-            credentials: "include",
+            headers: {
+              Authorization: `Bearer ${token}`,
+            },
           }
         );
 
-        if (response.status === 401) {
-          navigate("/customer/login");
+        if (response.status === 401 || response.status === 403) {
+          sessionStorage.removeItem("customerToken");
+          sessionStorage.removeItem("customerLoggedIn");
+          sessionStorage.removeItem("customerName");
+          sessionStorage.removeItem("customerEmail");
+
+          navigate("/customer/login", {
+            state: { from: "/customer/profile" },
+            replace: true,
+          });
           return;
         }
 
@@ -50,7 +71,7 @@ function CustomerProfile() {
       } catch (err) {
         setError(
           err instanceof TypeError
-            ? "Cannot connect to the backend. Check that Spring Boot is running."
+            ? "Cannot connect to the backend. Please check your connection."
             : err.message || "Unable to load profile."
         );
       } finally {
@@ -59,7 +80,7 @@ function CustomerProfile() {
     };
 
     fetchProfile();
-  }, [navigate]);
+  }, [navigate, token]);
 
   const handleChange = (event) => {
     const { name, value } = event.target;
@@ -70,7 +91,7 @@ function CustomerProfile() {
     }));
   };
 
-  // Update profile through the backend API
+  // Update profile through the JWT-protected backend API.
   const handleSave = async (event) => {
     event.preventDefault();
     setError("");
@@ -89,6 +110,16 @@ function CustomerProfile() {
       return;
     }
 
+    const currentToken = sessionStorage.getItem("customerToken");
+
+    if (!currentToken) {
+      navigate("/customer/login", {
+        state: { from: "/customer/profile" },
+        replace: true,
+      });
+      return;
+    }
+
     setSaving(true);
 
     try {
@@ -96,16 +127,24 @@ function CustomerProfile() {
         "https://foodxpress-fmpb.onrender.com/api/customers/profile",
         {
           method: "PUT",
-          credentials: "include",
           headers: {
             "Content-Type": "application/json",
+            Authorization: `Bearer ${currentToken}`,
           },
           body: JSON.stringify({ name, phone }),
         }
       );
 
-      if (response.status === 401) {
-        navigate("/customer/login");
+      if (response.status === 401 || response.status === 403) {
+        sessionStorage.removeItem("customerToken");
+        sessionStorage.removeItem("customerLoggedIn");
+        sessionStorage.removeItem("customerName");
+        sessionStorage.removeItem("customerEmail");
+
+        navigate("/customer/login", {
+          state: { from: "/customer/profile" },
+          replace: true,
+        });
         return;
       }
 
@@ -126,6 +165,12 @@ function CustomerProfile() {
         phone: data.phone ?? phone,
       });
 
+      // Keep the displayed customer name in sync.
+      sessionStorage.setItem(
+        "customerName",
+        data.name ?? name
+      );
+
       setEditing(false);
       setMessage("Your profile was updated successfully.");
     } catch (err) {
@@ -139,13 +184,68 @@ function CustomerProfile() {
     }
   };
 
-  const handleCancel = () => {
+  // Restore the original saved values without reloading the page.
+  const handleCancel = async () => {
     setEditing(false);
     setError("");
     setMessage("");
+    setLoading(true);
 
-    // Reload the saved values instead of keeping unsaved changes
-    window.location.reload();
+    const currentToken = sessionStorage.getItem("customerToken");
+
+    if (!currentToken) {
+      navigate("/customer/login", {
+        state: { from: "/customer/profile" },
+        replace: true,
+      });
+      return;
+    }
+
+    try {
+      const response = await fetch(
+        "https://foodxpress-fmpb.onrender.com/api/customers/profile",
+        {
+          method: "GET",
+          headers: {
+            Authorization: `Bearer ${currentToken}`,
+          },
+        }
+      );
+
+      if (response.status === 401 || response.status === 403) {
+        sessionStorage.removeItem("customerToken");
+        sessionStorage.removeItem("customerLoggedIn");
+        sessionStorage.removeItem("customerName");
+        sessionStorage.removeItem("customerEmail");
+
+        navigate("/customer/login", {
+          state: { from: "/customer/profile" },
+          replace: true,
+        });
+        return;
+      }
+
+      if (!response.ok) {
+        throw new Error("Unable to reload your saved profile.");
+      }
+
+      const data = await response.json();
+
+      setProfile({
+        id: data.id ?? "",
+        name: data.name ?? "",
+        email: data.email ?? "",
+        phone: data.phone ?? "",
+      });
+    } catch (err) {
+      setError(
+        err instanceof TypeError
+          ? "Cannot connect to the backend."
+          : err.message || "Unable to reload your profile."
+      );
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -161,6 +261,7 @@ function CustomerProfile() {
 
         <div className="d-flex gap-2">
           <button
+            type="button"
             className="btn btn-light btn-sm"
             onClick={() => navigate("/customer/home")}
           >
@@ -168,6 +269,7 @@ function CustomerProfile() {
           </button>
 
           <button
+            type="button"
             className="btn btn-outline-light btn-sm"
             onClick={() => navigate("/customer/orders")}
           >
@@ -175,6 +277,7 @@ function CustomerProfile() {
           </button>
 
           <button
+            type="button"
             className="btn btn-outline-light btn-sm"
             onClick={() => navigate("/customer/cart")}
           >

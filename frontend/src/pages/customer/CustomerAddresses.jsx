@@ -2,7 +2,8 @@
 import { useCallback, useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 
-const API_URL = "https://foodxpress-fmpb.onrender.com/api/customers/addresses";
+const API_URL =
+  "https://foodxpress-fmpb.onrender.com/api/customers/addresses";
 
 const emptyAddress = {
   label: "Home",
@@ -29,29 +30,49 @@ function CustomerAddresses() {
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
 
-  // Load the logged-in customer's saved addresses
+  const getToken = () => sessionStorage.getItem("customerToken");
+
+  const handleUnauthorized = (response) => {
+    if (response.status !== 401 && response.status !== 403) {
+      return false;
+    }
+
+    sessionStorage.removeItem("customerToken");
+    sessionStorage.removeItem("customerLoggedIn");
+    sessionStorage.removeItem("customerName");
+    sessionStorage.removeItem("customerEmail");
+
+    navigate("/customer/login");
+    return true;
+  };
+
   const fetchAddresses = useCallback(async () => {
     setLoading(true);
     setError("");
 
+    const token = getToken();
+
+    if (!token) {
+      setLoading(false);
+      navigate("/customer/login");
+      return;
+    }
+
     try {
       const response = await fetch(API_URL, {
         method: "GET",
-        credentials: "include",
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
       });
 
-      if (response.status === 401) {
-        navigate("/customer/login");
-        return;
-      }
+      if (handleUnauthorized(response)) return;
 
       const data = await response.json().catch(() => []);
 
       if (!response.ok) {
         throw new Error(
-          data.detail ||
-            data.message ||
-            "Unable to load saved addresses."
+          data.detail || data.message || "Unable to load saved addresses."
         );
       }
 
@@ -61,7 +82,7 @@ function CustomerAddresses() {
 
       setError(
         err instanceof TypeError
-          ? "Cannot connect to the backend. Make sure Spring Boot is running on port 8080."
+          ? "Cannot connect to the backend. Check your connection and backend status."
           : err.message || "Unable to load addresses."
       );
     } finally {
@@ -73,7 +94,6 @@ function CustomerAddresses() {
     fetchAddresses();
   }, [fetchAddresses]);
 
-  // Update form fields
   const handleChange = (event) => {
     const { name, value, checked, type } = event.target;
 
@@ -83,13 +103,11 @@ function CustomerAddresses() {
     }));
   };
 
-  // Clear the form
   const resetForm = () => {
     setForm({ ...emptyAddress });
     setEditingId(null);
   };
 
-  // Add a new address or update an existing one
   const handleSubmit = async (event) => {
     event.preventDefault();
 
@@ -109,6 +127,13 @@ function CustomerAddresses() {
       return;
     }
 
+    const token = getToken();
+
+    if (!token) {
+      navigate("/customer/login");
+      return;
+    }
+
     const payload = {
       label: form.label.trim(),
       recipientName: form.recipientName.trim(),
@@ -123,31 +148,24 @@ function CustomerAddresses() {
     setSaving(true);
 
     try {
-      const url = editingId
-        ? `${API_URL}/${editingId}`
-        : API_URL;
+      const url = editingId ? `${API_URL}/${editingId}` : API_URL;
 
       const response = await fetch(url, {
         method: editingId ? "PUT" : "POST",
-        credentials: "include",
         headers: {
+          Authorization: `Bearer ${token}`,
           "Content-Type": "application/json",
         },
         body: JSON.stringify(payload),
       });
 
-      if (response.status === 401) {
-        navigate("/customer/login");
-        return;
-      }
+      if (handleUnauthorized(response)) return;
 
       const data = await response.json().catch(() => ({}));
 
       if (!response.ok) {
         throw new Error(
-          data.detail ||
-            data.message ||
-            "Unable to save the address."
+          data.detail || data.message || "Unable to save the address."
         );
       }
 
@@ -172,7 +190,6 @@ function CustomerAddresses() {
     }
   };
 
-  // Populate the form for editing
   const handleEdit = (address) => {
     setEditingId(address.id);
 
@@ -196,13 +213,17 @@ function CustomerAddresses() {
     });
   };
 
-  // Delete an address
   const handleDelete = async (addressId) => {
     const confirmed = window.confirm(
       "Are you sure you want to delete this address?"
     );
 
-    if (!confirmed) {
+    if (!confirmed) return;
+
+    const token = getToken();
+
+    if (!token) {
+      navigate("/customer/login");
       return;
     }
 
@@ -211,26 +232,20 @@ function CustomerAddresses() {
     setMessage("");
 
     try {
-      const response = await fetch(
-        `${API_URL}/${addressId}`,
-        {
-          method: "DELETE",
-          credentials: "include",
-        }
-      );
+      const response = await fetch(`${API_URL}/${addressId}`, {
+        method: "DELETE",
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      });
 
-      if (response.status === 401) {
-        navigate("/customer/login");
-        return;
-      }
+      if (handleUnauthorized(response)) return;
 
       if (!response.ok) {
         const data = await response.json().catch(() => ({}));
 
         throw new Error(
-          data.detail ||
-            data.message ||
-            "Unable to delete the address."
+          data.detail || data.message || "Unable to delete the address."
         );
       }
 
@@ -255,7 +270,6 @@ function CustomerAddresses() {
 
   return (
     <div className="min-vh-100 bg-light">
-      {/* Navbar */}
       <nav className="navbar navbar-dark bg-primary px-3 px-md-5 py-3">
         <span
           className="navbar-brand fw-bold"
@@ -317,22 +331,16 @@ function CustomerAddresses() {
         )}
 
         <div className="row g-4">
-          {/* Add/Edit address form */}
           <div className="col-lg-5">
             <div className="card border-0 shadow-sm">
               <div className="card-body p-4">
                 <h5 className="fw-bold mb-4">
-                  {editingId
-                    ? "Edit Address"
-                    : "Add New Address"}
+                  {editingId ? "Edit Address" : "Add New Address"}
                 </h5>
 
                 <form onSubmit={handleSubmit}>
                   <div className="mb-3">
-                    <label
-                      htmlFor="label"
-                      className="form-label fw-semibold"
-                    >
+                    <label htmlFor="label" className="form-label fw-semibold">
                       Address Type
                     </label>
 
@@ -373,10 +381,7 @@ function CustomerAddresses() {
                   </div>
 
                   <div className="mb-3">
-                    <label
-                      htmlFor="phone"
-                      className="form-label fw-semibold"
-                    >
+                    <label htmlFor="phone" className="form-label fw-semibold">
                       Phone Number
                     </label>
 
@@ -390,10 +395,7 @@ function CustomerAddresses() {
                       value={form.phone}
                       onChange={(event) => {
                         const value = event.target.value;
-
-                        if (/^\d{0,10}$/.test(value)) {
-                          handleChange(event);
-                        }
+                        if (/^\d{0,10}$/.test(value)) handleChange(event);
                       }}
                       maxLength={10}
                       required
@@ -425,10 +427,7 @@ function CustomerAddresses() {
 
                   <div className="row g-3">
                     <div className="col-sm-6">
-                      <label
-                        htmlFor="city"
-                        className="form-label fw-semibold"
-                      >
+                      <label htmlFor="city" className="form-label fw-semibold">
                         City
                       </label>
 
@@ -483,10 +482,7 @@ function CustomerAddresses() {
                         value={form.pincode}
                         onChange={(event) => {
                           const value = event.target.value;
-
-                          if (/^\d{0,6}$/.test(value)) {
-                            handleChange(event);
-                          }
+                          if (/^\d{0,6}$/.test(value)) handleChange(event);
                         }}
                         maxLength={6}
                         required
@@ -543,12 +539,9 @@ function CustomerAddresses() {
             </div>
           </div>
 
-          {/* Saved addresses */}
           <div className="col-lg-7">
             <div className="d-flex justify-content-between align-items-center mb-3">
-              <h5 className="fw-bold mb-0">
-                Your Saved Addresses
-              </h5>
+              <h5 className="fw-bold mb-0">Your Saved Addresses</h5>
 
               <button
                 className="btn btn-outline-primary btn-sm"
@@ -562,13 +555,8 @@ function CustomerAddresses() {
             {loading ? (
               <div className="card border-0 shadow-sm">
                 <div className="card-body text-center py-5">
-                  <div
-                    className="spinner-border text-primary"
-                    role="status"
-                  >
-                    <span className="visually-hidden">
-                      Loading...
-                    </span>
+                  <div className="spinner-border text-primary" role="status">
+                    <span className="visually-hidden">Loading...</span>
                   </div>
 
                   <p className="text-muted mt-3 mb-0">
@@ -581,7 +569,6 @@ function CustomerAddresses() {
                 <div className="card-body text-center py-5">
                   <div className="display-4 mb-3">📍</div>
                   <h5>No saved addresses</h5>
-
                   <p className="text-muted mb-0">
                     Add your first delivery address using the form.
                   </p>
@@ -590,10 +577,7 @@ function CustomerAddresses() {
             ) : (
               <div className="d-flex flex-column gap-3">
                 {addresses.map((address) => (
-                  <div
-                    className="card border-0 shadow-sm"
-                    key={address.id}
-                  >
+                  <div className="card border-0 shadow-sm" key={address.id}>
                     <div className="card-body p-4">
                       <div className="d-flex justify-content-between align-items-start gap-2 mb-3">
                         <div className="d-flex align-items-center gap-2 flex-wrap">
@@ -617,14 +601,11 @@ function CustomerAddresses() {
                         {address.recipientName}
                       </h6>
 
-                      <p className="text-muted mb-1">
-                        📞 {address.phone}
-                      </p>
+                      <p className="text-muted mb-1">📞 {address.phone}</p>
 
                       <p className="mb-3">
-                        {address.addressLine},{" "}
-                        {address.city}, {address.state} -{" "}
-                        {address.pincode}
+                        {address.addressLine}, {address.city}, {address.state}{" "}
+                        - {address.pincode}
                       </p>
 
                       <div className="d-flex flex-wrap gap-2">

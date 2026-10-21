@@ -9,24 +9,20 @@ import com.example.FoodXpress_backend.dto.CustomerProfileResponse;
 import com.example.FoodXpress_backend.dto.CustomerProfileUpdateRequest;
 import com.example.FoodXpress_backend.service.CustomerService;
 
-import jakarta.servlet.http.HttpSession;
 import jakarta.validation.Valid;
 
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
-import org.springframework.web.server.ResponseStatusException;
 
 @RestController
 @RequestMapping("/api/customers")
-@CrossOrigin(
-    origins = {
+@CrossOrigin(origins = {
         "http://localhost:5173",
         "https://food-xpress-rust.vercel.app",
         "https://food-xpress-2e93gm43y-akhilareddy241.vercel.app"
-    },
-    allowCredentials = "true"
-)
+})
 public class CustomerController {
 
     private final CustomerService customerService;
@@ -43,65 +39,56 @@ public class CustomerController {
         CustomerRegisterResponse response =
                 customerService.register(request);
 
-        return ResponseEntity
-                .status(HttpStatus.CREATED)
-                .body(response);
+        return ResponseEntity.status(HttpStatus.CREATED).body(response);
     }
 
-    // Log in a customer
+    // Log in and return a JWT token
     @PostMapping("/login")
     public CustomerLoginResponse login(
-            @Valid @RequestBody CustomerLoginRequest request,
-            HttpSession session) {
+            @Valid @RequestBody CustomerLoginRequest request) {
 
-        CustomerLoginResponse response =
-                customerService.login(request);
-
-        session.setAttribute("customerId", response.id());
-
-        return response;
+        return customerService.login(request);
     }
 
-    // View the logged-in customer's profile
+    // View the authenticated customer's profile
     @GetMapping("/profile")
     public CustomerProfileResponse getProfile(
-            HttpSession session) {
+            Authentication authentication) {
 
-        return customerService.getProfile(
-                getCustomerId(session)
-        );
+        Long customerId = getCustomerId(authentication);
+
+        return customerService.getProfile(customerId);
     }
 
-    // Update the logged-in customer's profile
+    // Update the authenticated customer's profile
     @PutMapping("/profile")
     public CustomerProfileResponse updateProfile(
             @Valid @RequestBody CustomerProfileUpdateRequest request,
-            HttpSession session) {
+            Authentication authentication) {
 
-        return customerService.updateProfile(
-                getCustomerId(session),
-                request
-        );
+        Long customerId = getCustomerId(authentication);
+
+        return customerService.updateProfile(customerId, request);
     }
 
-    // Log out a customer
+    // JWT logout is handled by removing the token on the frontend
     @PostMapping("/logout")
-    public ResponseEntity<Void> logout(HttpSession session) {
-        session.invalidate();
+    public ResponseEntity<Void> logout() {
         return ResponseEntity.noContent().build();
     }
 
-    // Read the customer ID from the login session
-    private Long getCustomerId(HttpSession session) {
-        Object value = session.getAttribute("customerId");
+    // Read the customer ID established by JwtAuthenticationFilter
+    private Long getCustomerId(Authentication authentication) {
 
-        if (value instanceof Number number) {
+        if (authentication != null
+                && authentication.isAuthenticated()
+                && authentication.getPrincipal() instanceof Number number) {
+
             return number.longValue();
         }
 
-        throw new ResponseStatusException(
+        throw new org.springframework.web.server.ResponseStatusException(
                 HttpStatus.UNAUTHORIZED,
-                "Please log in first."
-        );
+                "Please log in first.");
     }
 }

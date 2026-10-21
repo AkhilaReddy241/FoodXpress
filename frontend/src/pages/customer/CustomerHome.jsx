@@ -6,6 +6,8 @@ const PURPLE = "#641bc2";
 const DARK = "#351078";
 const LIGHT_PURPLE = "#f4edff";
 
+const API_URL = "https://foodxpress-fmpb.onrender.com";
+
 const cuisineIcons = {
   Burgers: "🍔",
   Pizza: "🍕",
@@ -30,24 +32,28 @@ function CustomerHome() {
   const [restaurantLoading, setRestaurantLoading] = useState(false);
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
-
-  // Login/register popup state
   const [showAuthPrompt, setShowAuthPrompt] = useState(false);
   const [pendingDestination, setPendingDestination] =
     useState("/customer/home");
+  const [authVersion, setAuthVersion] = useState(0);
+
+  const customerToken = sessionStorage.getItem("customerToken");
+
+  const isLoggedIn = Boolean(customerToken);
 
   const customerName =
     sessionStorage.getItem("customerName") || "Food Lover";
 
-  const isLoggedIn =
-    sessionStorage.getItem("customerLoggedIn") === "true";
+  // Refresh the displayed login status when this component is mounted.
+  useEffect(() => {
+    setAuthVersion((version) => version + 1);
+  }, []);
 
-  // Check login before opening customer-only features
+  // Check JWT authentication before opening protected features.
   const handleProtectedNavigation = (destination) => {
-    const loggedIn =
-      sessionStorage.getItem("customerLoggedIn") === "true";
+    const token = sessionStorage.getItem("customerToken");
 
-    if (!loggedIn) {
+    if (!token) {
       setPendingDestination(destination);
       setShowAuthPrompt(true);
       return;
@@ -56,20 +62,21 @@ function CustomerHome() {
     navigate(destination);
   };
 
-  // Convert backend restaurant response for the cards
+  // Convert backend restaurant data for display.
   const formatRestaurants = (data) =>
     data.map((restaurant) => ({
       id: restaurant.id,
       name: restaurant.name,
-      cuisine: restaurant.cuisine,
-      description: restaurant.description || restaurant.cuisine,
+      cuisine: restaurant.cuisine || "",
+      description:
+        restaurant.description || restaurant.cuisine || "",
       rating: restaurant.rating,
-      time: `${restaurant.deliveryTimeMinutes} mins`,
+      time: `${restaurant.deliveryTimeMinutes ?? "N/A"} mins`,
       image: restaurant.imageUrl,
       freeDelivery: restaurant.freeDelivery,
     }));
 
-  // Load restaurants and cuisine categories
+  // Load restaurants and cuisines. These endpoints are public.
   useEffect(() => {
     const loadHomePageData = async () => {
       setLoading(true);
@@ -78,8 +85,8 @@ function CustomerHome() {
       try {
         const [restaurantResponse, cuisineResponse] =
           await Promise.all([
-            fetch("https://foodxpress-fmpb.onrender.com/api/restaurants"),
-            fetch("https://foodxpress-fmpb.onrender.com/api/restaurants/cuisines"),
+            fetch(`${API_URL}/api/restaurants`),
+            fetch(`${API_URL}/api/restaurants/cuisines`),
           ]);
 
         if (!restaurantResponse.ok) {
@@ -109,8 +116,11 @@ function CustomerHome() {
         setCuisines(cuisineData);
       } catch (err) {
         console.error("Home page API error:", err);
+
         setError(
-          "Unable to load Home page data. Check that Spring Boot is running."
+          err instanceof TypeError
+            ? "Cannot connect to the backend. Check your internet connection and backend deployment."
+            : err.message || "Unable to load Home page data."
         );
       } finally {
         setLoading(false);
@@ -120,7 +130,7 @@ function CustomerHome() {
     loadHomePageData();
   }, []);
 
-  // Filter restaurants by search and cuisine
+  // Filter restaurants by search and cuisine.
   const visibleRestaurants = restaurants.filter((restaurant) => {
     const query = search.trim().toLowerCase();
 
@@ -131,16 +141,14 @@ function CustomerHome() {
     const matchesSearch =
       restaurant.name.toLowerCase().includes(query) ||
       restaurant.cuisine.toLowerCase().includes(query) ||
-      (restaurant.description || "").toLowerCase().includes(query);
+      restaurant.description.toLowerCase().includes(query);
 
     return matchesCuisine && matchesSearch;
   });
 
-  // Customer-only favorites
+  // Favorites currently exist only in this component's state.
   const toggleFavorite = (id) => {
-    if (
-      sessionStorage.getItem("customerLoggedIn") !== "true"
-    ) {
+    if (!sessionStorage.getItem("customerToken")) {
       setPendingDestination("/customer/home");
       setShowAuthPrompt(true);
       return;
@@ -153,14 +161,14 @@ function CustomerHome() {
     );
   };
 
-  // View all cuisine categories
+  // Reload cuisine categories.
   const handleViewAllCuisines = async () => {
     setCuisineLoading(true);
     setMessage("");
 
     try {
       const response = await fetch(
-        "https://foodxpress-fmpb.onrender.com/api/restaurants/cuisines"
+        `${API_URL}/api/restaurants/cuisines`
       );
 
       if (!response.ok) {
@@ -179,6 +187,7 @@ function CustomerHome() {
       setMessage(`All ${data.length} cuisine categories loaded.`);
     } catch (err) {
       console.error("View All Cuisines error:", err);
+
       setMessage(
         "Unable to load cuisine categories. Check the backend and try again."
       );
@@ -187,15 +196,13 @@ function CustomerHome() {
     }
   };
 
-  // View all restaurants
+  // Reload restaurants.
   const handleViewAllRestaurants = async () => {
     setRestaurantLoading(true);
     setMessage("");
 
     try {
-      const response = await fetch(
-        "https://foodxpress-fmpb.onrender.com/api/restaurants"
-      );
+      const response = await fetch(`${API_URL}/api/restaurants`);
 
       if (!response.ok) {
         throw new Error(
@@ -216,6 +223,7 @@ function CustomerHome() {
       setMessage(`All ${data.length} restaurants loaded.`);
     } catch (err) {
       console.error("View All Restaurants error:", err);
+
       setMessage(
         "Unable to load restaurants. Check the backend and try again."
       );
@@ -224,24 +232,38 @@ function CustomerHome() {
     }
   };
 
-  // Customer logout
+  // JWT logout: clear the token from the browser.
   const handleLogout = async () => {
+    const token = sessionStorage.getItem("customerToken");
+
     try {
-      await fetch("https://foodxpress-fmpb.onrender.com/api/customers/logout", {
-        method: "POST",
-        credentials: "include",
-      });
+      // The endpoint may be available in your backend.
+      // The bearer token is sent instead of a session cookie.
+      if (token) {
+        await fetch(`${API_URL}/api/customers/logout`, {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        });
+      }
     } catch (err) {
       console.error("Logout request failed:", err);
     } finally {
+      sessionStorage.removeItem("customerToken");
       sessionStorage.removeItem("customerLoggedIn");
       sessionStorage.removeItem("customerName");
       sessionStorage.removeItem("customerEmail");
-      navigate("/customer/home");
+
+      setFavorites([]);
+      setShowAuthPrompt(false);
+      setAuthVersion((version) => version + 1);
+
+      navigate("/customer/home", { replace: true });
     }
   };
 
-  // Continue to login or registration
+  // Open login or registration and preserve the requested destination.
   const openAuthPage = (path) => {
     setShowAuthPrompt(false);
 
@@ -301,12 +323,12 @@ function CustomerHome() {
                 🏠 Home
               </a>
 
-             <Link
-  to="/customer/restaurants"
-  className="nav-link text-white"
->
-  🍴 Restaurants
-</Link>
+              <Link
+                to="/customer/restaurants"
+                className="nav-link text-white"
+              >
+                🍴 Restaurants
+              </Link>
 
               <button
                 type="button"
@@ -352,8 +374,6 @@ function CustomerHome() {
             <div className="d-flex align-items-center gap-2 mt-3 mt-lg-0">
               {isLoggedIn ? (
                 <>
-                 
-
                   <span
                     className="rounded-circle d-flex align-items-center justify-content-center text-white fw-bold flex-shrink-0"
                     style={{
@@ -487,9 +507,7 @@ function CustomerHome() {
                   className="img-fluid rounded-4 shadow w-100"
                   loading="eager"
                   onError={(event) => {
-                    if (
-                      event.currentTarget.dataset.fallback !== "used"
-                    ) {
+                    if (event.currentTarget.dataset.fallback !== "used") {
                       event.currentTarget.dataset.fallback = "used";
                       event.currentTarget.src =
                         "https://images.unsplash.com/photo-1546833999-b9f581a1996d?auto=format&fit=crop&w=900&q=85";

@@ -2,6 +2,8 @@
 import { useState } from "react";
 import { Link, useLocation } from "react-router-dom";
 
+const API_URL = "https://foodxpress-fmpb.onrender.com";
+
 function CustomerRegister() {
   const location = useLocation();
 
@@ -73,11 +75,12 @@ function CustomerRegister() {
       setLoading(true);
 
       const response = await fetch(
-        "https://foodxpress-fmpb.onrender.com/api/customers/register",
+        `${API_URL}/api/customers/register`,
         {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
+            Accept: "application/json",
           },
           body: JSON.stringify({
             name: form.name.trim(),
@@ -104,9 +107,18 @@ function CustomerRegister() {
             data.message ||
             (response.status === 409
               ? "This email is already registered."
-              : "Registration failed. Please try again.")
+              : response.status === 400
+                ? "Please check your registration details."
+                : "Registration failed. Please try again.")
         );
       }
+
+      // Registration creates the account but does not log the
+      // customer in. The customer must log in to receive a JWT.
+      sessionStorage.removeItem("customerToken");
+      sessionStorage.removeItem("customerLoggedIn");
+      sessionStorage.removeItem("customerName");
+      sessionStorage.removeItem("customerEmail");
 
       setSuccess(
         data.message || "Customer registered successfully!"
@@ -120,9 +132,11 @@ function CustomerRegister() {
         confirmPassword: "",
       });
     } catch (err) {
+      console.error("Customer registration error:", err);
+
       if (err instanceof TypeError) {
         setError(
-          "Cannot connect to the backend. Make sure Spring Boot is running on port 8080."
+          "Cannot connect to the backend. Check your internet connection and backend deployment."
         );
       } else {
         setError(err.message || "Something went wrong.");

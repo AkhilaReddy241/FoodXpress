@@ -1,8 +1,10 @@
+
 import { useEffect, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 
 const PURPLE = "#641bc2";
 const DARK = "#351078";
+const API_URL = "https://foodxpress-fmpb.onrender.com";
 
 function CustomerRestaurants() {
   const navigate = useNavigate();
@@ -17,12 +19,13 @@ function CustomerRestaurants() {
   const [reloadKey, setReloadKey] = useState(0);
 
   const isLoggedIn =
-    sessionStorage.getItem("customerLoggedIn") === "true";
+    sessionStorage.getItem("customerLoggedIn") === "true" &&
+    Boolean(sessionStorage.getItem("customerToken"));
 
   const customerName =
     sessionStorage.getItem("customerName") || "Food Lover";
 
-  // Fetch restaurants and check their menus.
+  // Load public restaurant and menu data.
   useEffect(() => {
     const controller = new AbortController();
 
@@ -31,10 +34,9 @@ function CustomerRestaurants() {
       setError("");
 
       try {
-        const response = await fetch(
-          "https://foodxpress-fmpb.onrender.com/api/restaurants",
-          { signal: controller.signal }
-        );
+        const response = await fetch(`${API_URL}/api/restaurants`, {
+          signal: controller.signal,
+        });
 
         if (!response.ok) {
           throw new Error("Unable to load restaurants.");
@@ -54,7 +56,7 @@ function CustomerRestaurants() {
           data.map(async (restaurant) => {
             try {
               const menuResponse = await fetch(
-                `https://foodxpress-fmpb.onrender.com/api/restaurants/${restaurant.id}/menu`,
+                `${API_URL}/api/restaurants/${restaurant.id}/menu`,
                 { signal: controller.signal }
               );
 
@@ -113,7 +115,7 @@ function CustomerRestaurants() {
           console.error("Restaurant loading error:", err);
 
           setError(
-            "Unable to load restaurants. Please check whether the backend is running."
+            "Unable to load restaurants. Please check your backend connection."
           );
         }
       } finally {
@@ -128,7 +130,6 @@ function CustomerRestaurants() {
     return () => controller.abort();
   }, [reloadKey]);
 
-  // Cuisine options are generated from database records.
   const cuisines = [
     "All",
     ...new Set(
@@ -138,7 +139,6 @@ function CustomerRestaurants() {
     ),
   ];
 
-  // Apply search, cuisine and food-type filters.
   const filteredRestaurants = restaurants.filter((restaurant) => {
     const query = search.trim().toLowerCase();
 
@@ -173,7 +173,6 @@ function CustomerRestaurants() {
     );
   });
 
-  // Clicking an active toggle turns it off.
   const toggleFoodType = (type) => {
     setSelectedFoodType((current) =>
       current === type ? "ALL" : type
@@ -186,10 +185,13 @@ function CustomerRestaurants() {
     setSelectedFoodType("ALL");
   };
 
-  // Protect customer-only pages.
+  // Protect customer-only navigation using the stored JWT.
   const handleProtectedNavigation = (destination) => {
+    const token = sessionStorage.getItem("customerToken");
+
     if (
-      sessionStorage.getItem("customerLoggedIn") !== "true"
+      sessionStorage.getItem("customerLoggedIn") !== "true" ||
+      !token
     ) {
       navigate("/customer/login", {
         state: { from: destination },
@@ -200,19 +202,23 @@ function CustomerRestaurants() {
     navigate(destination);
   };
 
-  // Customer logout.
+  // Log out by removing the JWT from the browser.
   const handleLogout = async () => {
+    const token = sessionStorage.getItem("customerToken");
+
     try {
-      await fetch(
-        "https://foodxpress-fmpb.onrender.com/api/customers/logout",
-        {
+      if (token) {
+        await fetch(`${API_URL}/api/customers/logout`, {
           method: "POST",
-          credentials: "include",
-        }
-      );
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        });
+      }
     } catch (err) {
       console.error("Logout request failed:", err);
     } finally {
+      sessionStorage.removeItem("customerToken");
       sessionStorage.removeItem("customerLoggedIn");
       sessionStorage.removeItem("customerName");
       sessionStorage.removeItem("customerEmail");
@@ -226,7 +232,6 @@ function CustomerRestaurants() {
       className="min-vh-100"
       style={{ backgroundColor: "#faf8ff" }}
     >
-      {/* NAVIGATION BAR */}
       <nav
         className="navbar navbar-expand-lg navbar-dark sticky-top py-2"
         style={{
@@ -240,9 +245,7 @@ function CustomerRestaurants() {
             style={{ fontSize: 23 }}
           >
             🍽️ Food{" "}
-            <span style={{ color: "#d9a2ff" }}>
-              Xpress
-            </span>
+            <span style={{ color: "#d9a2ff" }}>Xpress</span>
           </Link>
 
           <button
@@ -370,8 +373,6 @@ function CustomerRestaurants() {
       </nav>
 
       <main className="container py-4 py-lg-5">
-
-        {/* PAGE BANNER */}
         <section
           className="rounded-4 p-4 p-lg-5 mb-4"
           style={{
@@ -412,13 +413,8 @@ function CustomerRestaurants() {
           </div>
         </section>
 
-        {/* SEARCH BAR AND VEG / NON-VEG TOGGLES */}
         <section className="bg-white rounded-4 p-3 p-md-4 mb-4 shadow-sm">
-
-          {/* IMPORTANT: SEARCH AND TOGGLES SHARE THE SAME ROW */}
           <div className="row g-3 align-items-end">
-
-            {/* SEARCH BAR */}
             <div className="col-12 col-lg-6">
               <label
                 htmlFor="restaurantSearch"
@@ -446,7 +442,6 @@ function CustomerRestaurants() {
               </div>
             </div>
 
-            {/* VEG / NON-VEG BUTTONS BESIDE SEARCH */}
             <div className="col-12 col-lg-6">
               <label
                 className="form-label fw-semibold d-block"
@@ -456,8 +451,6 @@ function CustomerRestaurants() {
               </label>
 
               <div className="d-flex flex-wrap gap-2">
-
-                {/* VEG ON / OFF */}
                 <button
                   type="button"
                   aria-pressed={selectedFoodType === "VEG"}
@@ -509,16 +502,13 @@ function CustomerRestaurants() {
                     />
                   </span>
 
-                  <span className="fw-semibold">
-                    Veg
-                  </span>
+                  <span className="fw-semibold">Veg</span>
 
                   <span className="small">
                     {selectedFoodType === "VEG" ? "ON" : "OFF"}
                   </span>
                 </button>
 
-                {/* NON-VEG ON / OFF */}
                 <button
                   type="button"
                   aria-pressed={selectedFoodType === "NON_VEG"}
@@ -570,21 +560,16 @@ function CustomerRestaurants() {
                     />
                   </span>
 
-                  <span className="fw-semibold">
-                    Non-Veg
-                  </span>
+                  <span className="fw-semibold">Non-Veg</span>
 
                   <span className="small">
-                    {selectedFoodType === "NON_VEG"
-                      ? "ON"
-                      : "OFF"}
+                    {selectedFoodType === "NON_VEG" ? "ON" : "OFF"}
                   </span>
                 </button>
               </div>
             </div>
           </div>
 
-          {/* CUISINE FILTER UNDER THE SEARCH ROW */}
           <div className="row g-3 mt-1 align-items-end">
             <div className="col-12 col-md-5 col-lg-4">
               <label
@@ -605,9 +590,7 @@ function CustomerRestaurants() {
               >
                 {cuisines.map((cuisine) => (
                   <option key={cuisine} value={cuisine}>
-                    {cuisine === "All"
-                      ? "All Cuisines"
-                      : cuisine}
+                    {cuisine === "All" ? "All Cuisines" : cuisine}
                   </option>
                 ))}
               </select>
@@ -635,7 +618,6 @@ function CustomerRestaurants() {
           </div>
         </section>
 
-        {/* LOADING */}
         {loading && (
           <div className="text-center py-5">
             <div
@@ -654,13 +636,9 @@ function CustomerRestaurants() {
           </div>
         )}
 
-        {/* ERROR */}
         {!loading && error && (
           <div className="alert alert-danger rounded-4">
-            <h5 className="fw-bold">
-              Unable to load restaurants
-            </h5>
-
+            <h5 className="fw-bold">Unable to load restaurants</h5>
             <p>{error}</p>
 
             <button
@@ -674,144 +652,124 @@ function CustomerRestaurants() {
           </div>
         )}
 
-        {/* RESTAURANT CARDS */}
-        {!loading &&
-          !error &&
-          filteredRestaurants.length > 0 && (
-            <div className="row g-4">
-              {filteredRestaurants.map((restaurant) => (
-                <div
-                  className="col-12 col-sm-6 col-lg-4 col-xl-3"
-                  key={restaurant.id}
+        {!loading && !error && filteredRestaurants.length > 0 && (
+          <div className="row g-4">
+            {filteredRestaurants.map((restaurant) => (
+              <div
+                className="col-12 col-sm-6 col-lg-4 col-xl-3"
+                key={restaurant.id}
+              >
+                <article
+                  className="card h-100 border-0 rounded-4 overflow-hidden"
+                  style={{
+                    boxShadow: "0 5px 18px rgba(53,16,120,0.09)",
+                  }}
                 >
-                  <article
-                    className="card h-100 border-0 rounded-4 overflow-hidden"
-                    style={{
-                      boxShadow:
-                        "0 5px 18px rgba(53,16,120,0.09)",
-                    }}
-                  >
-                    {/* RESTAURANT IMAGE */}
-                    {restaurant.imageUrl ? (
-                      <img
-                        src={restaurant.imageUrl}
-                        alt={restaurant.name}
-                        className="card-img-top"
-                        loading="lazy"
-                        style={{
-                          height: 190,
-                          objectFit: "cover",
-                        }}
-                        onError={(event) => {
-                          event.currentTarget.style.display = "none";
-                        }}
-                      />
-                    ) : (
-                      <div
-                        className="d-flex justify-content-center align-items-center"
-                        style={{
-                          height: 190,
-                          backgroundColor: "#eee2ff",
-                          fontSize: 65,
-                        }}
-                        role="img"
-                        aria-label="Restaurant"
-                      >
-                        🍽️
-                      </div>
-                    )}
+                  {restaurant.imageUrl ? (
+                    <img
+                      src={restaurant.imageUrl}
+                      alt={restaurant.name}
+                      className="card-img-top"
+                      loading="lazy"
+                      style={{
+                        height: 190,
+                        objectFit: "cover",
+                      }}
+                      onError={(event) => {
+                        event.currentTarget.style.display = "none";
+                      }}
+                    />
+                  ) : (
+                    <div
+                      className="d-flex justify-content-center align-items-center"
+                      style={{
+                        height: 190,
+                        backgroundColor: "#eee2ff",
+                        fontSize: 65,
+                      }}
+                      role="img"
+                      aria-label="Restaurant"
+                    >
+                      🍽️
+                    </div>
+                  )}
 
-                    {/* RESTAURANT DETAILS */}
-                    <div className="card-body d-flex flex-column p-3">
-                      <span
-                        className="badge rounded-pill align-self-start mb-2"
-                        style={{
-                          backgroundColor: "#f0e5ff",
-                          color: DARK,
-                        }}
-                      >
-                        {restaurant.cuisine || "Various Cuisines"}
+                  <div className="card-body d-flex flex-column p-3">
+                    <span
+                      className="badge rounded-pill align-self-start mb-2"
+                      style={{
+                        backgroundColor: "#f0e5ff",
+                        color: DARK,
+                      }}
+                    >
+                      {restaurant.cuisine || "Various Cuisines"}
+                    </span>
+
+                    <h5 className="fw-bold mb-2" style={{ color: DARK }}>
+                      {restaurant.name}
+                    </h5>
+
+                    <p className="text-secondary small mb-3">
+                      {restaurant.description ||
+                        "Discover delicious dishes at this restaurant."}
+                    </p>
+
+                    <div className="d-flex flex-wrap justify-content-between gap-2 small text-secondary mb-3">
+                      <span>
+                        ⭐ {Number(restaurant.rating ?? 0).toFixed(1)}
                       </span>
 
-                      <h5
-                        className="fw-bold mb-2"
-                        style={{ color: DARK }}
-                      >
-                        {restaurant.name}
-                      </h5>
-
-                      <p className="text-secondary small mb-3">
-                        {restaurant.description ||
-                          "Discover delicious dishes at this restaurant."}
-                      </p>
-
-                      <div className="d-flex flex-wrap justify-content-between gap-2 small text-secondary mb-3">
-                        <span>
-                          ⭐{" "}
-                          {Number(restaurant.rating ?? 0).toFixed(1)}
-                        </span>
-
-                        <span>
-                          🕒{" "}
-                          {restaurant.deliveryTimeMinutes ?? "—"} mins
-                        </span>
-                      </div>
-
-                      
-
-                      <button
-                        type="button"
-                        className="btn text-white fw-semibold w-100 mt-auto rounded-3"
-                        style={{
-                          background: `linear-gradient(90deg, #7f2bd0, ${PURPLE})`,
-                        }}
-                        onClick={() =>
-                          handleProtectedNavigation(
-                            `/customer/menu/${restaurant.id}`
-                          )
-                        }
-                      >
-                        View Menu →
-                      </button>
+                      <span>
+                        🕒 {restaurant.deliveryTimeMinutes ?? "—"} mins
+                      </span>
                     </div>
-                  </article>
-                </div>
-              ))}
-            </div>
-          )}
 
-        {/* NO RESULTS */}
-        {!loading &&
-          !error &&
-          filteredRestaurants.length === 0 && (
-            <div className="bg-white rounded-4 p-5 text-center shadow-sm">
-              <div className="display-3 mb-3">🔎</div>
+                    <button
+                      type="button"
+                      className="btn text-white fw-semibold w-100 mt-auto rounded-3"
+                      style={{
+                        background: `linear-gradient(90deg, #7f2bd0, ${PURPLE})`,
+                      }}
+                      onClick={() =>
+                        handleProtectedNavigation(
+                          `/customer/menu/${restaurant.id}`
+                        )
+                      }
+                    >
+                      View Menu →
+                    </button>
+                  </div>
+                </article>
+              </div>
+            ))}
+          </div>
+        )}
 
-              <h4 className="fw-bold" style={{ color: DARK }}>
-                No restaurants found
-              </h4>
+        {!loading && !error && filteredRestaurants.length === 0 && (
+          <div className="bg-white rounded-4 p-5 text-center shadow-sm">
+            <div className="display-3 mb-3">🔎</div>
 
-              <p className="text-secondary">
-                Try changing your search or food preference.
-              </p>
+            <h4 className="fw-bold" style={{ color: DARK }}>
+              No restaurants found
+            </h4>
 
-              <button
-                type="button"
-                className="btn text-white rounded-pill px-4"
-                style={{ backgroundColor: PURPLE }}
-                onClick={clearFilters}
-              >
-                Show All Restaurants
-              </button>
-            </div>
-          )}
+            <p className="text-secondary">
+              Try changing your search or food preference.
+            </p>
 
-        {/* FOOTER */}
+            <button
+              type="button"
+              className="btn text-white rounded-pill px-4"
+              style={{ backgroundColor: PURPLE }}
+              onClick={clearFilters}
+            >
+              Show All Restaurants
+            </button>
+          </div>
+        )}
+
         <footer className="border-top mt-5 pt-3 d-flex flex-wrap justify-content-between gap-2 small text-secondary">
-          <strong style={{ color: PURPLE }}>
-            Food Xpress
-          </strong>
-
+          <strong style={{ color: PURPLE }}>Food Xpress</strong>
           <span>Good Food · Happy Mood 💜</span>
         </footer>
       </main>
