@@ -1,13 +1,14 @@
 
 import { useState } from "react";
-import { Link, useLocation } from "react-router-dom";
+import { Link, useLocation, useNavigate } from "react-router-dom";
 
 const API_URL = "https://foodxpress-fmpb.onrender.com";
 
 function CustomerRegister() {
   const location = useLocation();
+  const navigate = useNavigate();
 
-  // Preserve the destination chosen before registration.
+  // Preserve the destination requested before registration.
   const requestedDestination = location.state?.from;
 
   const redirectTo =
@@ -28,7 +29,6 @@ function CustomerRegister() {
   });
 
   const [error, setError] = useState("");
-  const [success, setSuccess] = useState("");
   const [loading, setLoading] = useState(false);
 
   const handleChange = (e) => {
@@ -42,9 +42,7 @@ function CustomerRegister() {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-
     setError("");
-    setSuccess("");
 
     if (Object.values(form).some((value) => !value.trim())) {
       setError("Please fill in all fields.");
@@ -113,24 +111,14 @@ function CustomerRegister() {
         );
       }
 
-      // Registration creates the account but does not log the
-      // customer in. The customer must log in to receive a JWT.
+      // Registration alone does not authenticate the customer.
       sessionStorage.removeItem("customerToken");
       sessionStorage.removeItem("customerLoggedIn");
       sessionStorage.removeItem("customerName");
       sessionStorage.removeItem("customerEmail");
 
-      setSuccess(
-        data.message || "Customer registered successfully!"
-      );
-
-      setForm({
-        name: "",
-        email: "",
-        phone: "",
-        password: "",
-        confirmPassword: "",
-      });
+      // Navigate immediately after successful registration.
+      navigate(redirectTo, { replace: true });
     } catch (err) {
       console.error("Customer registration error:", err);
 
@@ -176,8 +164,7 @@ function CustomerRegister() {
         >
           <div>
             <h3 className="fw-bold mb-1">
-              ♨ Food{" "}
-              <span style={{ color: "#d79bff" }}>Xpress</span>
+              ♨ Food <span style={{ color: "#d79bff" }}>Xpress</span>
             </h3>
 
             <p className="small mb-4" style={{ color: "#e4ccff" }}>
@@ -287,28 +274,6 @@ function CustomerRegister() {
               </div>
             )}
 
-            {success && (
-              <div
-                className="alert alert-success py-2 small"
-                role="status"
-              >
-                <strong>✓ {success}</strong>
-
-                <p className="mb-2 mt-2">
-                  Your account has been created. Please log in to
-                  continue.
-                </p>
-
-                <Link
-                  to="/customer/login"
-                  state={{ from: redirectTo }}
-                  className="btn btn-success btn-sm"
-                >
-                  Continue to Login →
-                </Link>
-              </div>
-            )}
-
             <form onSubmit={handleSubmit}>
               <div className="mb-2">
                 <label
@@ -330,7 +295,7 @@ function CustomerRegister() {
                   autoComplete="name"
                   maxLength={100}
                   required
-                  disabled={loading || Boolean(success)}
+                  disabled={loading}
                 />
               </div>
 
@@ -354,7 +319,7 @@ function CustomerRegister() {
                   autoComplete="email"
                   maxLength={150}
                   required
-                  disabled={loading || Boolean(success)}
+                  disabled={loading}
                 />
               </div>
 
@@ -383,7 +348,7 @@ function CustomerRegister() {
                   inputMode="numeric"
                   autoComplete="tel"
                   required
-                  disabled={loading || Boolean(success)}
+                  disabled={loading}
                 />
               </div>
 
@@ -407,7 +372,7 @@ function CustomerRegister() {
                   autoComplete="new-password"
                   minLength={6}
                   required
-                  disabled={loading || Boolean(success)}
+                  disabled={loading}
                 />
               </div>
 
@@ -431,26 +396,24 @@ function CustomerRegister() {
                   autoComplete="new-password"
                   minLength={6}
                   required
-                  disabled={loading || Boolean(success)}
+                  disabled={loading}
                 />
               </div>
 
-              {!success && (
-                <button
-                  type="submit"
-                  disabled={loading}
-                  className="btn w-100 text-white fw-bold py-2"
-                  style={{
-                    background:
-                      "linear-gradient(90deg, #912cf0, #7028bc)",
-                    border: "none",
-                    borderRadius: "9px",
-                    fontSize: "13px",
-                  }}
-                >
-                  {loading ? "Creating Account..." : "Create Account →"}
-                </button>
-              )}
+              <button
+                type="submit"
+                disabled={loading}
+                className="btn w-100 text-white fw-bold py-2"
+                style={{
+                  background:
+                    "linear-gradient(90deg, #912cf0, #7028bc)",
+                  border: "none",
+                  borderRadius: "9px",
+                  fontSize: "13px",
+                }}
+              >
+                {loading ? "Creating Account..." : "Create Account →"}
+              </button>
             </form>
 
             <p className="text-center text-secondary small mt-3 mb-0">
