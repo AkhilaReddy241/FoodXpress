@@ -8,6 +8,8 @@ import java.security.SecureRandom;
 import java.time.Instant;
 import java.util.Locale;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 
 import org.springframework.http.HttpStatus;
 import org.springframework.mail.SimpleMailMessage;
@@ -35,6 +37,14 @@ public class PasswordResetService {
     private final ConcurrentHashMap<String, Long> lastSent =
             new ConcurrentHashMap<>();
 
+    private final ExecutorService emailExecutor =
+            Executors.newFixedThreadPool(2, runnable -> {
+                Thread thread = new Thread(runnable);
+                thread.setName("password-reset-email");
+                thread.setDaemon(true);
+                return thread;
+            });
+
     public PasswordResetService(
             CustomerRepository customerRepository,
             PasswordEncoder passwordEncoder,
@@ -44,10 +54,9 @@ public class PasswordResetService {
         this.mailSender = mailSender;
     }
 
-    public synchronized String sendOtp(String rawEmail) {
+    public String sendOtp(String rawEmail) {
         String email = normalizeEmail(rawEmail);
 
-        // Avoid revealing whether an email is registered.
         if (customerRepository.findByEmailIgnoreCase(email).isEmpty()) {
             return "If this email is registered, an OTP will be sent.";
         }
@@ -65,30 +74,53 @@ public class PasswordResetService {
                 "%06d", secureRandom.nextInt(1_000_000));
 
         OtpData data = new OtpData(
+                email,
                 passwordEncoder.encode(otp),
                 now + OTP_EXPIRY_SECONDS);
 
-        otpStore.put(email, data);
+        synchronized (this) {
+            previous = lastSent.get(email);
+            now = Instant.now().getEpochSecond();
+
+            if (previous != null && now - previous < RESEND_WAIT_SECONDS) {
+                throw new ResponseStatusException(
+                        HttpStatus.TOO_MANY_REQUESTS,
+                        "Please wait before requesting another OTP.");
+            }
+
+            otpStore.put(email, data);
+            lastSent.put(email, now);
+        }
 
         try {
-            SimpleMailMessage message = new SimpleMailMessage();
-            message.setTo(email);
-            message.setSubject("Food Xpress - Password Reset OTP");
-            message.setText(
-                    "Your Food Xpress password reset OTP is: " + otp
-                    + "\n\nThis OTP expires in 5 minutes."
-                    + "\nIf you did not request this, please ignore this email.");
+            emailExecutor.execute(() -> {
+                try {
+                    SimpleMailMessage message = new SimpleMailMessage();
+                    message.setTo(email);
+                    message.setSubject("Food Xpress - Password Reset OTP");
+                    message.setText(
+                            "Your Food Xpress password reset OTP is: " + otp
+                            + "\n\nThis OTP expires in 5 minutes."
+                            + "\nIf you did not request this, please ignore this email.");
 
-            mailSender.send(message);
-            lastSent.put(email, now);
-
-            return "If this email is registered, an OTP will be sent.";
+                    mailSender.send(message);
+                } catch (Exception ex) {
+                    otpStore.remove(email, data);
+                    lastSent.remove(email, lastSent.get(email));
+                    System.err.println(
+                            "Failed to send password reset email: "
+                            + ex.getMessage());
+                }
+            });
         } catch (RuntimeException ex) {
             otpStore.remove(email, data);
+            lastSent.remove(email);
             throw new ResponseStatusException(
                     HttpStatus.SERVICE_UNAVAILABLE,
-                    "Unable to send OTP email. Please try again later.");
+                    "Unable to queue OTP email. Please try again later.");
         }
+
+        return "If this email is registered, an OTP will be sent.";
     }
 
     public synchronized String verifyOtp(String rawEmail, String otp) {
@@ -171,15 +203,16 @@ public class PasswordResetService {
     }
 
     private static class OtpData {
+        private final String email;
         private final String encodedOtp;
         private final long expiresAt;
-        private final String email;
         private int attempts;
 
-        private OtpData(String encodedOtp, long expiresAt) {
+        private OtpData(
+                String email, String encodedOtp, long expiresAt) {
+            this.email = email;
             this.encodedOtp = encodedOtp;
             this.expiresAt = expiresAt;
-            this.email = "";
             this.attempts = 0;
         }
     }
