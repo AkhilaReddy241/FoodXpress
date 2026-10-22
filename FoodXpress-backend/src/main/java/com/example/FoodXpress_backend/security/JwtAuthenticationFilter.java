@@ -35,20 +35,24 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
             return true;
         }
 
-        // Public customer authentication and password reset
+        // Allow public customer authentication endpoints.
         if (HttpMethod.POST.matches(method)) {
-            return "/api/customers/login".equals(path)
-                    || "/api/customers/register".equals(path)
-                    || "/api/customers/forgot-password".equals(path)
-                    || "/api/customers/verify-reset-otp".equals(path)
-                    || "/api/customers/reset-password".equals(path);
+            if (path.endsWith("/")) {
+                path = path.substring(0, path.length() - 1);
+            }
+
+            return path.equals("/api/customers/register")
+                    || path.equals("/api/customers/login")
+                    || path.equals("/api/customers/forgot-password")
+                    || path.equals("/api/customers/verify-reset-otp")
+                    || path.equals("/api/customers/reset-password");
         }
 
-        // Public restaurant and cuisine browsing
+        // Allow public restaurant and cuisine browsing.
         if (HttpMethod.GET.matches(method)) {
-            return "/api/restaurants".equals(path)
+            return path.equals("/api/restaurants")
                     || path.startsWith("/api/restaurants/")
-                    || "/api/cuisines".equals(path)
+                    || path.equals("/api/cuisines")
                     || path.startsWith("/api/cuisines/");
         }
 
