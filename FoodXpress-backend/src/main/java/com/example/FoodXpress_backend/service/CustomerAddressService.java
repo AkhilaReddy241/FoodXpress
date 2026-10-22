@@ -24,61 +24,65 @@ public class CustomerAddressService {
     public CustomerAddressService(
             CustomerAddressRepository addressRepository,
             CustomerRepository customerRepository) {
+
         this.addressRepository = addressRepository;
         this.customerRepository = customerRepository;
     }
 
-    // Get all saved addresses
+    // Get all saved addresses.
     @Transactional(readOnly = true)
     public List<CustomerAddressResponse> getAddresses(Long customerId) {
+
         return addressRepository
-            .findByCustomer_IdOrderByIdDesc(customerId)
-            .stream()
-            .map(this::toResponse)
-            .toList();
+                .findByCustomer_IdOrderByIdDesc(customerId)
+                .stream()
+                .map(address -> toResponse(address))
+                .toList();
     }
 
-    // Add an address
+    // Add an address.
     @Transactional
     public CustomerAddressResponse addAddress(
             Long customerId,
             CustomerAddressRequest request) {
 
         Customer customer = customerRepository.findById(customerId)
-            .orElseThrow(() -> new ResponseStatusException(
-                HttpStatus.NOT_FOUND, "Customer not found."
-            ));
+                .orElseThrow(() -> new ResponseStatusException(
+                        HttpStatus.NOT_FOUND,
+                        "Customer not found."
+                ));
 
         boolean makeDefault = request.defaultAddress()
-            || !addressRepository.existsByCustomer_Id(customerId);
+                || !addressRepository.existsByCustomer_Id(customerId);
 
         if (makeDefault) {
             clearDefaultAddresses(customerId);
         }
 
         CustomerAddress address = new CustomerAddress(
-            customer,
-            request.label().trim(),
-            request.recipientName().trim(),
-            request.phone().trim(),
-            request.addressLine().trim(),
-            request.city().trim(),
-            request.state().trim(),
-            request.pincode().trim(),
-            makeDefault
+                customer,
+                request.label().trim(),
+                request.recipientName().trim(),
+                request.phone().trim(),
+                request.addressLine().trim(),
+                request.city().trim(),
+                request.state().trim(),
+                request.pincode().trim(),
+                makeDefault
         );
 
         return toResponse(addressRepository.save(address));
     }
 
-    // Update an existing address
+    // Update an existing address.
     @Transactional
     public CustomerAddressResponse updateAddress(
             Long customerId,
             Long addressId,
             CustomerAddressRequest request) {
 
-        CustomerAddress address = findOwnedAddress(customerId, addressId);
+        CustomerAddress address =
+                findOwnedAddress(customerId, addressId);
 
         if (request.defaultAddress()) {
             clearDefaultAddresses(customerId);
@@ -91,10 +95,14 @@ public class CustomerAddressService {
         address.setCity(request.city().trim());
         address.setState(request.state().trim());
         address.setPincode(request.pincode().trim());
-        address.setDefaultAddress(request.defaultAddress()
-            || addressRepository.findByIdAndCustomer_Id(
-                addressId, customerId
-            ).map(CustomerAddress::isDefaultAddress).orElse(false));
+
+        address.setDefaultAddress(
+                request.defaultAddress()
+                        || addressRepository
+                                .findByIdAndCustomer_Id(addressId, customerId)
+                                .map(CustomerAddress::isDefaultAddress)
+                                .orElse(false)
+        );
 
         // A newly selected default takes precedence.
         if (request.defaultAddress()) {
@@ -104,10 +112,13 @@ public class CustomerAddressService {
         return toResponse(addressRepository.save(address));
     }
 
-    // Delete an address
+    // Delete an address.
     @Transactional
     public void deleteAddress(Long customerId, Long addressId) {
-        CustomerAddress address = findOwnedAddress(customerId, addressId);
+
+        CustomerAddress address =
+                findOwnedAddress(customerId, addressId);
+
         addressRepository.delete(address);
     }
 
@@ -116,32 +127,39 @@ public class CustomerAddressService {
             Long addressId) {
 
         return addressRepository
-            .findByIdAndCustomer_Id(addressId, customerId)
-            .orElseThrow(() -> new ResponseStatusException(
-                HttpStatus.NOT_FOUND,
-                "Address not found."
-            ));
+                .findByIdAndCustomer_Id(addressId, customerId)
+                .orElseThrow(() -> new ResponseStatusException(
+                        HttpStatus.NOT_FOUND,
+                        "Address not found."
+                ));
     }
 
     private void clearDefaultAddresses(Long customerId) {
-        List<CustomerAddress> addresses =
-            addressRepository.findByCustomer_IdOrderByIdDesc(customerId);
 
-        addresses.forEach(address -> address.setDefaultAddress(false));
+        List<CustomerAddress> addresses =
+                addressRepository
+                        .findByCustomer_IdOrderByIdDesc(customerId);
+
+        for (CustomerAddress address : addresses) {
+            address.setDefaultAddress(false);
+        }
+
         addressRepository.saveAll(addresses);
     }
 
-    private CustomerAddressResponse toResponse(CustomerAddress address) {
+    private CustomerAddressResponse toResponse(
+            CustomerAddress address) {
+
         return new CustomerAddressResponse(
-            address.getId(),
-            address.getLabel(),
-            address.getRecipientName(),
-            address.getPhone(),
-            address.getAddressLine(),
-            address.getCity(),
-            address.getState(),
-            address.getPincode(),
-            address.isDefaultAddress()
+                address.getId(),
+                address.getLabel(),
+                address.getRecipientName(),
+                address.getPhone(),
+                address.getAddressLine(),
+                address.getCity(),
+                address.getState(),
+                address.getPincode(),
+                address.isDefaultAddress()
         );
     }
 }

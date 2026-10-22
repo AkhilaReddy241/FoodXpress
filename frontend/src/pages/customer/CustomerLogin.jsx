@@ -25,8 +25,8 @@ function CustomerLogin() {
   const [success, setSuccess] = useState("");
   const [loading, setLoading] = useState(false);
 
-  const handleSubmit = async (e) => {
-    e.preventDefault();
+  const handleSubmit = async (event) => {
+    event.preventDefault();
 
     if (loading || success) return;
 
@@ -41,7 +41,6 @@ function CustomerLogin() {
     try {
       setLoading(true);
 
-      // Clear any previous customer session before logging in again.
       sessionStorage.removeItem("customerToken");
       sessionStorage.removeItem("customerLoggedIn");
       sessionStorage.removeItem("customerName");
@@ -76,33 +75,31 @@ function CustomerLogin() {
         );
       }
 
-      // The backend must return a JWT token after successful login.
       if (!data.token) {
         throw new Error(
           "Login response did not contain a JWT token. Please check the backend."
         );
       }
 
-      // Store the JWT for authenticated API requests.
       sessionStorage.setItem("customerToken", data.token);
-
-      // Store customer information for the frontend UI.
       sessionStorage.setItem("customerLoggedIn", "true");
       sessionStorage.setItem("customerName", data.name || "");
-      sessionStorage.setItem("customerEmail", data.email || email.trim());
+      sessionStorage.setItem(
+        "customerEmail",
+        data.email || email.trim()
+      );
 
       setSuccess(
         `Login successful! Welcome, ${data.name || "Customer"}!`
       );
 
-      // Redirect after displaying the success message.
       navigate(redirectTo, { replace: true });
     } catch (err) {
       console.error("Customer login error:", err);
 
       if (err instanceof TypeError) {
         setError(
-          "Cannot connect to the backend. Please check your internet connection and backend server."
+          "Cannot connect to the backend. Please check your connection and backend server."
         );
       } else {
         setError(
@@ -144,8 +141,7 @@ function CustomerLogin() {
         >
           <div>
             <h3 className="fw-bold mb-1">
-              ♨ Food{" "}
-              <span style={{ color: "#d79bff" }}>Xpress</span>
+              ♨ Food <span style={{ color: "#d79bff" }}>Xpress</span>
             </h3>
 
             <p className="small mb-4" style={{ color: "#e4ccff" }}>
@@ -273,14 +269,14 @@ function CustomerLogin() {
                   style={inputStyle}
                   placeholder="Enter your email"
                   value={email}
-                  onChange={(e) => setEmail(e.target.value)}
+                  onChange={(event) => setEmail(event.target.value)}
                   autoComplete="email"
                   required
                   disabled={loading || Boolean(success)}
                 />
               </div>
 
-              <div className="mb-3">
+              <div className="mb-2">
                 <label
                   htmlFor="loginPassword"
                   className="form-label small fw-semibold mb-1"
@@ -295,11 +291,22 @@ function CustomerLogin() {
                   style={inputStyle}
                   placeholder="Enter your password"
                   value={password}
-                  onChange={(e) => setPassword(e.target.value)}
+                  onChange={(event) => setPassword(event.target.value)}
                   autoComplete="current-password"
                   required
                   disabled={loading || Boolean(success)}
                 />
+              </div>
+
+              {/* FORGOT PASSWORD LINK */}
+              <div className="text-end mb-3">
+                <Link
+                  to="/customer/forgot-password"
+                  className="small fw-semibold text-decoration-none"
+                  style={{ color: "#7028bc" }}
+                >
+                  Forgot Password?
+                </Link>
               </div>
 
               <button

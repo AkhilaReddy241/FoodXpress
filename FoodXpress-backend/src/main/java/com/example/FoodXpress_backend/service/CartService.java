@@ -47,24 +47,24 @@ public class CartService {
     public CartResponse getCart(Long customerId) {
 
         List<CartItemResponse> items =
-            cartItemRepository
-                .findByCustomer_IdOrderByIdAsc(customerId)
-                .stream()
-                .map(this::toResponse)
-                .toList();
+                cartItemRepository
+                        .findByCustomer_IdOrderByIdAsc(customerId)
+                        .stream()
+                        .map(item -> toResponse(item))
+                        .toList();
 
         int totalQuantity = items.stream()
-            .mapToInt(CartItemResponse::quantity)
-            .sum();
+                .mapToInt(CartItemResponse::quantity)
+                .sum();
 
         double totalAmount = items.stream()
-            .mapToDouble(CartItemResponse::subtotal)
-            .sum();
+                .mapToDouble(CartItemResponse::subtotal)
+                .sum();
 
         return new CartResponse(
-            items,
-            totalQuantity,
-            roundMoney(totalAmount)
+                items,
+                totalQuantity,
+                roundMoney(totalAmount)
         );
     }
 
@@ -75,46 +75,46 @@ public class CartService {
             AddCartItemRequest request) {
 
         Customer customer = customerRepository.findById(customerId)
-            .orElseThrow(() -> new ResponseStatusException(
-                HttpStatus.UNAUTHORIZED,
-                "Customer account not found."
-            ));
+                .orElseThrow(() -> new ResponseStatusException(
+                        HttpStatus.UNAUTHORIZED,
+                        "Customer account not found."
+                ));
 
         FoodItem foodItem = foodItemRepository
-            .findById(request.foodItemId())
-            .orElseThrow(() -> new ResponseStatusException(
-                HttpStatus.NOT_FOUND,
-                "Food item not found."
-            ));
+                .findById(request.foodItemId())
+                .orElseThrow(() -> new ResponseStatusException(
+                        HttpStatus.NOT_FOUND,
+                        "Food item not found."
+                ));
 
         if (!foodItem.isAvailable()) {
             throw new ResponseStatusException(
-                HttpStatus.CONFLICT,
-                "This food item is currently unavailable."
+                    HttpStatus.CONFLICT,
+                    "This food item is currently unavailable."
             );
         }
 
         CartItem cartItem = cartItemRepository
-            .findByCustomer_IdAndFoodItem_Id(
-                customerId,
-                request.foodItemId()
-            )
-            .orElse(null);
+                .findByCustomer_IdAndFoodItem_Id(
+                        customerId,
+                        request.foodItemId()
+                )
+                .orElse(null);
 
         if (cartItem == null) {
             cartItem = new CartItem(
-                customer,
-                foodItem,
-                request.quantity()
+                    customer,
+                    foodItem,
+                    request.quantity()
             );
         } else {
             int newQuantity =
-                cartItem.getQuantity() + request.quantity();
+                    cartItem.getQuantity() + request.quantity();
 
             if (newQuantity > 99) {
                 throw new ResponseStatusException(
-                    HttpStatus.BAD_REQUEST,
-                    "Maximum quantity per food item is 99."
+                        HttpStatus.BAD_REQUEST,
+                        "Maximum quantity per food item is 99."
                 );
             }
 
@@ -134,7 +134,7 @@ public class CartService {
             UpdateCartItemRequest request) {
 
         CartItem cartItem =
-            findCustomerCartItem(customerId, cartItemId);
+                findCustomerCartItem(customerId, cartItemId);
 
         cartItem.setQuantity(request.quantity());
 
@@ -150,7 +150,7 @@ public class CartService {
             Long cartItemId) {
 
         CartItem cartItem =
-            findCustomerCartItem(customerId, cartItemId);
+                findCustomerCartItem(customerId, cartItemId);
 
         cartItemRepository.delete(cartItem);
         cartItemRepository.flush();
@@ -174,11 +174,11 @@ public class CartService {
             Long cartItemId) {
 
         return cartItemRepository
-            .findByIdAndCustomer_Id(cartItemId, customerId)
-            .orElseThrow(() -> new ResponseStatusException(
-                HttpStatus.NOT_FOUND,
-                "Cart item not found."
-            ));
+                .findByIdAndCustomer_Id(cartItemId, customerId)
+                .orElseThrow(() -> new ResponseStatusException(
+                        HttpStatus.NOT_FOUND,
+                        "Cart item not found."
+                ));
     }
 
     // Convert the database entity into a response object.
@@ -191,15 +191,15 @@ public class CartService {
         int quantity = item.getQuantity();
 
         return new CartItemResponse(
-            item.getId(),
-            food.getId(),
-            food.getName(),
-            restaurant.getId(),
-            restaurant.getName(),
-            price,
-            quantity,
-            roundMoney(price * quantity),
-            food.getImageUrl()
+                item.getId(),
+                food.getId(),
+                food.getName(),
+                restaurant.getId(),
+                restaurant.getName(),
+                price,
+                quantity,
+                roundMoney(price * quantity),
+                food.getImageUrl()
         );
     }
 
@@ -213,8 +213,8 @@ public class CartService {
         double subtotal = cart.totalAmount();
 
         String code = request.code()
-            .trim()
-            .toUpperCase(Locale.ROOT);
+                .trim()
+                .toUpperCase(Locale.ROOT);
 
         double discount;
 
@@ -223,8 +223,8 @@ public class CartService {
             case "FOOD10" -> {
                 if (subtotal < 299) {
                     throw new ResponseStatusException(
-                        HttpStatus.BAD_REQUEST,
-                        "FOOD10 requires a minimum order of Rs. 299."
+                            HttpStatus.BAD_REQUEST,
+                            "FOOD10 requires a minimum order of Rs. 299."
                     );
                 }
 
@@ -234,8 +234,8 @@ public class CartService {
             case "SAVE50" -> {
                 if (subtotal < 499) {
                     throw new ResponseStatusException(
-                        HttpStatus.BAD_REQUEST,
-                        "SAVE50 requires a minimum order of Rs. 499."
+                            HttpStatus.BAD_REQUEST,
+                            "SAVE50 requires a minimum order of Rs. 499."
                     );
                 }
 
@@ -245,8 +245,8 @@ public class CartService {
             case "WELCOME15" -> {
                 if (subtotal < 699) {
                     throw new ResponseStatusException(
-                        HttpStatus.BAD_REQUEST,
-                        "WELCOME15 requires a minimum order of Rs. 699."
+                            HttpStatus.BAD_REQUEST,
+                            "WELCOME15 requires a minimum order of Rs. 699."
                     );
                 }
 
@@ -256,8 +256,8 @@ public class CartService {
             case "XPRESS20" -> {
                 if (subtotal < 999) {
                     throw new ResponseStatusException(
-                        HttpStatus.BAD_REQUEST,
-                        "XPRESS20 requires a minimum order of Rs. 999."
+                            HttpStatus.BAD_REQUEST,
+                            "XPRESS20 requires a minimum order of Rs. 999."
                     );
                 }
 
@@ -265,8 +265,8 @@ public class CartService {
             }
 
             default -> throw new ResponseStatusException(
-                HttpStatus.BAD_REQUEST,
-                "Invalid coupon code."
+                    HttpStatus.BAD_REQUEST,
+                    "Invalid coupon code."
             );
         }
 
@@ -274,11 +274,11 @@ public class CartService {
         double finalTotal = roundMoney(subtotal - discount);
 
         return new CouponResponse(
-            code,
-            subtotal,
-            discount,
-            finalTotal,
-            "Coupon applied successfully."
+                code,
+                subtotal,
+                discount,
+                finalTotal,
+                "Coupon applied successfully."
         );
     }
 

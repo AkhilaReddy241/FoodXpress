@@ -41,10 +41,14 @@ public class SecurityConfig {
 
                 .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
 
-                // Public customer login and registration
+                // Public customer login, registration, and password reset
                 .requestMatchers(
+                    HttpMethod.POST,
                     "/api/customers/register",
-                    "/api/customers/login"
+                    "/api/customers/login",
+                    "/api/customers/forgot-password",
+                    "/api/customers/verify-reset-otp",
+                    "/api/customers/reset-password"
                 ).permitAll()
 
                 // Public restaurant browsing

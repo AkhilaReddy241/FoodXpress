@@ -31,16 +31,20 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
         String path = request.getServletPath();
         String method = request.getMethod();
 
-        if ("OPTIONS".equalsIgnoreCase(method)) {
+        if (HttpMethod.OPTIONS.matches(method)) {
             return true;
         }
 
-        if ("POST".equalsIgnoreCase(method)
-                && ("/api/customers/login".equals(path)
-                || "/api/customers/register".equals(path))) {
-            return true;
+        // Public customer authentication and password reset
+        if (HttpMethod.POST.matches(method)) {
+            return "/api/customers/login".equals(path)
+                    || "/api/customers/register".equals(path)
+                    || "/api/customers/forgot-password".equals(path)
+                    || "/api/customers/verify-reset-otp".equals(path)
+                    || "/api/customers/reset-password".equals(path);
         }
 
+        // Public restaurant and cuisine browsing
         if (HttpMethod.GET.matches(method)) {
             return "/api/restaurants".equals(path)
                     || path.startsWith("/api/restaurants/")

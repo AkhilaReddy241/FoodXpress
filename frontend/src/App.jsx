@@ -1,3 +1,4 @@
+
 import {
   BrowserRouter,
   Routes,
@@ -24,6 +25,7 @@ import CustomerOrders from "./pages/customer/CustomerOrders.jsx";
 import CustomerProfile from "./pages/customer/CustomerProfile.jsx";
 import CustomerAddresses from "./pages/customer/CustomerAddresses.jsx";
 import CustomerHelp from "./pages/customer/CustomerHelp.jsx";
+import CustomerForgotPassword from "./pages/customer/CustomerForgotPassword.jsx";
 
 // Components
 import ProtectedRoute from "./components/ProtectedRoute.jsx";
@@ -94,6 +96,12 @@ function App() {
         <Route
           path="/customer/register"
           element={<CustomerRegister />}
+        />
+
+        {/* Forgot Password - public route */}
+        <Route
+          path="/customer/forgot-password"
+          element={<CustomerForgotPassword />}
         />
 
         {/* Protected customer routes */}

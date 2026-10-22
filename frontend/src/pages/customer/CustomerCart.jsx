@@ -653,7 +653,7 @@ function CustomerCart() {
                   <form
                     className="input-group mb-3"
                     onSubmit={(event) => {
-                      event.preventDefault();
+                      event.preventDefault();a
                       applyCoupon();
                     }}
                   >

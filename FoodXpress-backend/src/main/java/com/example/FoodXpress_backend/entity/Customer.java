@@ -1,3 +1,4 @@
+
 package com.example.FoodXpress_backend.entity;
 
 import jakarta.persistence.*;
@@ -30,7 +31,6 @@ public class Customer {
             String email,
             String phone,
             String passwordHash) {
-
         this.name = name;
         this.email = email;
         this.phone = phone;
@@ -58,12 +58,16 @@ public class Customer {
         return passwordHash;
     }
 
-    // Setters for profile updates
+    // Setters
     public void setName(String name) {
         this.name = name;
     }
 
     public void setPhone(String phone) {
         this.phone = phone;
+    }
+
+    public void setPasswordHash(String passwordHash) {
+        this.passwordHash = passwordHash;
     }
 }
