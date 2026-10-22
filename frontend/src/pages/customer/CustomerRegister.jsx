@@ -8,7 +8,6 @@ function CustomerRegister() {
   const location = useLocation();
   const navigate = useNavigate();
 
-  // Preserve the destination requested before registration.
   const requestedDestination = location.state?.from;
 
   const redirectTo =
@@ -111,13 +110,24 @@ function CustomerRegister() {
         );
       }
 
-      // Registration alone does not authenticate the customer.
-      sessionStorage.removeItem("customerToken");
-      sessionStorage.removeItem("customerLoggedIn");
-      sessionStorage.removeItem("customerName");
-      sessionStorage.removeItem("customerEmail");
+      // Registration must return a JWT token for automatic login.
+      if (!data.token) {
+        throw new Error(
+          "Your account may have been created, but the server did not return a login token. Please log in manually."
+        );
+      }
 
-      // Navigate immediately after successful registration.
+      // Store the same session fields used for customer login.
+      sessionStorage.setItem("customerToken", data.token);
+      sessionStorage.setItem("customerLoggedIn", "true");
+      sessionStorage.setItem("customerName", data.name || form.name.trim());
+      sessionStorage.setItem("customerEmail", data.email || form.email.trim());
+
+      if (data.id != null) {
+        sessionStorage.setItem("customerId", String(data.id));
+      }
+
+      // Navigate after storing the token.
       navigate(redirectTo, { replace: true });
     } catch (err) {
       console.error("Customer registration error:", err);
@@ -266,10 +276,7 @@ function CustomerRegister() {
             </div>
 
             {error && (
-              <div
-                className="alert alert-danger py-2 small"
-                role="alert"
-              >
+              <div className="alert alert-danger py-2 small" role="alert">
                 {error}
               </div>
             )}
@@ -405,8 +412,7 @@ function CustomerRegister() {
                 disabled={loading}
                 className="btn w-100 text-white fw-bold py-2"
                 style={{
-                  background:
-                    "linear-gradient(90deg, #912cf0, #7028bc)",
+                  background: "linear-gradient(90deg, #912cf0, #7028bc)",
                   border: "none",
                   borderRadius: "9px",
                   fontSize: "13px",
