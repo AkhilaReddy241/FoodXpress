@@ -11,6 +11,11 @@ import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
+import org.springframework.web.cors.CorsConfiguration;
+import org.springframework.web.cors.CorsConfigurationSource;
+import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
+
+import java.util.List;
 
 @Configuration
 public class SecurityConfig {
@@ -19,6 +24,25 @@ public class SecurityConfig {
     public JwtAuthenticationFilter jwtAuthenticationFilter(
             JwtService jwtService) {
         return new JwtAuthenticationFilter(jwtService);
+    }
+
+    @Bean
+    public CorsConfigurationSource corsConfigurationSource() {
+        CorsConfiguration configuration = new CorsConfiguration();
+
+        configuration.setAllowedOrigins(
+                List.of("https://food-xpress-rust.vercel.app"));
+        configuration.setAllowedMethods(
+                List.of("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"));
+        configuration.setAllowedHeaders(
+                List.of("Authorization", "Content-Type", "Accept"));
+        configuration.setAllowCredentials(false);
+
+        UrlBasedCorsConfigurationSource source =
+                new UrlBasedCorsConfigurationSource();
+        source.registerCorsConfiguration("/**", configuration);
+
+        return source;
     }
 
     @Bean
@@ -33,15 +57,9 @@ public class SecurityConfig {
             .formLogin(form -> form.disable())
             .httpBasic(basic -> basic.disable())
             .sessionManagement(session ->
-                session.sessionCreationPolicy(
-                    SessionCreationPolicy.STATELESS
-                )
-            )
+                session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
             .authorizeHttpRequests(auth -> auth
-
                 .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
-
-                // Public customer login, registration, and password reset
                 .requestMatchers(
                     HttpMethod.POST,
                     "/api/customers/register",
@@ -50,28 +68,18 @@ public class SecurityConfig {
                     "/api/customers/verify-reset-otp",
                     "/api/customers/reset-password"
                 ).permitAll()
-
-                // Public restaurant browsing
                 .requestMatchers(
                     HttpMethod.GET,
                     "/api/restaurants",
-                    "/api/restaurants/**"
-                ).permitAll()
-
-                // Public cuisine browsing
-                .requestMatchers(
-                    HttpMethod.GET,
+                    "/api/restaurants/**",
                     "/api/cuisines",
                     "/api/cuisines/**"
                 ).permitAll()
-
-                // Protect all remaining endpoints
                 .anyRequest().authenticated()
             )
             .addFilterBefore(
                 jwtAuthenticationFilter,
-                UsernamePasswordAuthenticationFilter.class
-            );
+                UsernamePasswordAuthenticationFilter.class);
 
         return http.build();
     }
