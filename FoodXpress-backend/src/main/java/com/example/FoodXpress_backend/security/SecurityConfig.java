@@ -32,14 +32,16 @@ public class SecurityConfig {
 
         configuration.setAllowedOrigins(
                 List.of("https://food-xpress-rust.vercel.app"));
+
         configuration.setAllowedMethods(
                 List.of("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"));
+
         configuration.setAllowedHeaders(
                 List.of("Authorization", "Content-Type", "Accept"));
-        configuration.setAllowCredentials(false);
 
         UrlBasedCorsConfigurationSource source =
                 new UrlBasedCorsConfigurationSource();
+
         source.registerCorsConfiguration("/**", configuration);
 
         return source;
@@ -82,5 +84,5 @@ public class SecurityConfig {
                 UsernamePasswordAuthenticationFilter.class);
 
         return http.build();
-    }
-}
+
+                }    }
