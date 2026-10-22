@@ -57,12 +57,17 @@ public class CustomerService {
 
         Customer saved = customerRepository.save(customer);
 
+        String token = jwtService.generateToken(
+                saved.getId(),
+                saved.getEmail());
+
         return new CustomerRegisterResponse(
                 saved.getId(),
                 saved.getName(),
                 saved.getEmail(),
                 saved.getPhone(),
-                "Customer registered successfully");
+                "Customer registered successfully",
+                token);
     }
 
     @Transactional(readOnly = true)
@@ -81,7 +86,8 @@ public class CustomerService {
         }
 
         String token = jwtService.generateToken(
-                customer.getId(), customer.getEmail());
+                customer.getId(),
+                customer.getEmail());
 
         return new CustomerLoginResponse(
                 customer.getId(),
