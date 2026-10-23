@@ -1,11 +1,10 @@
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 
 const PURPLE = "#641bc2";
 const DARK = "#351078";
 const LIGHT_PURPLE = "#f4edff";
-
 const API_URL = "https://foodxpress-fmpb.onrender.com";
 
 const cuisineIcons = {
@@ -18,6 +17,34 @@ const cuisineIcons = {
   Desserts: "🍰",
   Beverages: "🥤",
 };
+
+function getCartQuantity(data) {
+  if (!data) return 0;
+
+  if (typeof data.totalQuantity === "number") {
+    return data.totalQuantity;
+  }
+
+  if (typeof data.totalItems === "number") {
+    return data.totalItems;
+  }
+
+  const items = Array.isArray(data)
+    ? data
+    : data.items ||
+      data.cartItems ||
+      data.cart?.items ||
+      data.data?.items ||
+      [];
+
+  if (!Array.isArray(items)) return 0;
+
+  return items.reduce(
+    (total, item) =>
+      total + Number(item.quantity ?? item.count ?? 0),
+    0
+  );
+}
 
 function CustomerHome() {
   const navigate = useNavigate();
@@ -36,20 +63,59 @@ function CustomerHome() {
   const [pendingDestination, setPendingDestination] =
     useState("/customer/home");
   const [authVersion, setAuthVersion] = useState(0);
+  const [cartCount, setCartCount] = useState(0);
 
   const customerToken = sessionStorage.getItem("customerToken");
-
   const isLoggedIn = Boolean(customerToken);
-
   const customerName =
     sessionStorage.getItem("customerName") || "Food Lover";
 
-  // Refresh the displayed login status when this component is mounted.
+  const refreshCartCount = useCallback(async () => {
+    const token = sessionStorage.getItem("customerToken");
+
+    if (!token) {
+      setCartCount(0);
+      return;
+    }
+
+    try {
+      const response = await fetch(`${API_URL}/api/cart`, {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      });
+
+      if (!response.ok) {
+        console.error("Cart count request failed:", response.status);
+        return;
+      }
+
+      const data = await response.json();
+      setCartCount(getCartQuantity(data));
+    } catch (err) {
+      console.error("Unable to refresh cart count:", err);
+    }
+  }, []);
+
   useEffect(() => {
     setAuthVersion((version) => version + 1);
   }, []);
 
-  // Check JWT authentication before opening protected features.
+  useEffect(() => {
+    refreshCartCount();
+
+    const handleFocus = () => refreshCartCount();
+    const handleCartUpdate = () => refreshCartCount();
+
+    window.addEventListener("focus", handleFocus);
+    window.addEventListener("cartUpdated", handleCartUpdate);
+
+    return () => {
+      window.removeEventListener("focus", handleFocus);
+      window.removeEventListener("cartUpdated", handleCartUpdate);
+    };
+  }, [refreshCartCount, authVersion]);
+
   const handleProtectedNavigation = (destination) => {
     const token = sessionStorage.getItem("customerToken");
 
@@ -62,7 +128,6 @@ function CustomerHome() {
     navigate(destination);
   };
 
-  // Convert backend restaurant data for display.
   const formatRestaurants = (data) =>
     data.map((restaurant) => ({
       id: restaurant.id,
@@ -76,7 +141,6 @@ function CustomerHome() {
       freeDelivery: restaurant.freeDelivery,
     }));
 
-  // Load restaurants and cuisines. These endpoints are public.
   useEffect(() => {
     const loadHomePageData = async () => {
       setLoading(true);
@@ -130,7 +194,7 @@ function CustomerHome() {
     loadHomePageData();
   }, []);
 
-  // Filter restaurants by search and cuisine.
+  // Search filters restaurant name, cuisine and description.
   const visibleRestaurants = restaurants.filter((restaurant) => {
     const query = search.trim().toLowerCase();
 
@@ -146,7 +210,6 @@ function CustomerHome() {
     return matchesCuisine && matchesSearch;
   });
 
-  // Favorites currently exist only in this component's state.
   const toggleFavorite = (id) => {
     if (!sessionStorage.getItem("customerToken")) {
       setPendingDestination("/customer/home");
@@ -161,7 +224,6 @@ function CustomerHome() {
     );
   };
 
-  // Reload cuisine categories.
   const handleViewAllCuisines = async () => {
     setCuisineLoading(true);
     setMessage("");
@@ -196,7 +258,6 @@ function CustomerHome() {
     }
   };
 
-  // Reload restaurants.
   const handleViewAllRestaurants = async () => {
     setRestaurantLoading(true);
     setMessage("");
@@ -232,13 +293,10 @@ function CustomerHome() {
     }
   };
 
-  // JWT logout: clear the token from the browser.
   const handleLogout = async () => {
     const token = sessionStorage.getItem("customerToken");
 
     try {
-      // The endpoint may be available in your backend.
-      // The bearer token is sent instead of a session cookie.
       if (token) {
         await fetch(`${API_URL}/api/customers/logout`, {
           method: "POST",
@@ -256,6 +314,7 @@ function CustomerHome() {
       sessionStorage.removeItem("customerEmail");
 
       setFavorites([]);
+      setCartCount(0);
       setShowAuthPrompt(false);
       setAuthVersion((version) => version + 1);
 
@@ -263,7 +322,6 @@ function CustomerHome() {
     }
   };
 
-  // Open login or registration and preserve the requested destination.
   const openAuthPage = (path) => {
     setShowAuthPrompt(false);
 
@@ -287,21 +345,62 @@ function CustomerHome() {
     >
       {/* NAVBAR */}
       <nav
-        className="navbar navbar-expand-lg navbar-dark sticky-top py-2"
+        className="navbar navbar-expand-xl navbar-dark sticky-top py-2"
         style={{
           background: "linear-gradient(100deg, #51208f, #381071)",
         }}
       >
         <div className="container-fluid px-3 px-xl-4">
+          {/* BRAND */}
           <Link
             to="/customer/home"
-            className="navbar-brand d-flex align-items-center gap-2"
+            className="navbar-brand d-flex align-items-center gap-2 me-3"
           >
             <span className="fw-bold text-nowrap" style={{ fontSize: 23 }}>
               ♨ Food <span style={{ color: "#d9a2ff" }}>Xpress</span>
             </span>
           </Link>
 
+          {/* SEARCH BESIDE BRAND */}
+          <form
+            className="d-flex flex-grow-1 me-3"
+            style={{ maxWidth: 420, minWidth: 120 }}
+            onSubmit={(event) => {
+              event.preventDefault();
+              document
+                .getElementById("restaurants")
+                ?.scrollIntoView({ behavior: "smooth" });
+            }}
+          >
+            <div className="input-group rounded-pill overflow-hidden bg-white">
+              <span className="input-group-text bg-white border-0 ps-3">
+                🔎
+              </span>
+
+              <input
+                type="search"
+                className="form-control border-0 shadow-none"
+                placeholder="Search food or restaurants..."
+                value={search}
+                onChange={(event) => setSearch(event.target.value)}
+                aria-label="Search food or restaurants"
+                style={{ minWidth: 0 }}
+              />
+
+              {search && (
+                <button
+                  type="button"
+                  className="btn bg-white border-0 text-secondary"
+                  onClick={() => setSearch("")}
+                  aria-label="Clear search"
+                >
+                  ✕
+                </button>
+              )}
+            </div>
+          </form>
+
+          {/* MOBILE MENU BUTTON */}
           <button
             className="navbar-toggler"
             type="button"
@@ -314,35 +413,41 @@ function CustomerHome() {
             <span className="navbar-toggler-icon" />
           </button>
 
+          {/* NAVIGATION LINKS */}
           <div className="collapse navbar-collapse" id="customerNavbar">
-            <div className="navbar-nav mx-auto gap-lg-2">
+            <div className="navbar-nav ms-xl-auto me-xl-3 gap-xl-1">
               <a
                 href="#home"
-                className="nav-link active text-white fw-semibold"
+                className="nav-link active text-white fw-semibold text-nowrap"
               >
                 🏠 Home
               </a>
 
               <Link
                 to="/customer/restaurants"
-                className="nav-link text-white"
+                className="nav-link text-white text-nowrap"
               >
                 🍴 Restaurants
               </Link>
 
               <button
                 type="button"
-                className="nav-link text-white"
+                className="nav-link text-white text-nowrap"
                 onClick={() =>
                   handleProtectedNavigation("/customer/cart")
                 }
               >
                 🛒 Cart
+                {isLoggedIn && cartCount > 0 && (
+                  <span className="badge rounded-pill bg-danger ms-1">
+                    {cartCount}
+                  </span>
+                )}
               </button>
 
               <button
                 type="button"
-                className="nav-link text-white"
+                className="nav-link text-white text-nowrap"
                 onClick={() =>
                   handleProtectedNavigation("/customer/orders")
                 }
@@ -352,7 +457,7 @@ function CustomerHome() {
 
               <button
                 type="button"
-                className="nav-link text-white"
+                className="nav-link text-white text-nowrap"
                 onClick={() =>
                   handleProtectedNavigation("/customer/profile")
                 }
@@ -362,7 +467,7 @@ function CustomerHome() {
 
               <button
                 type="button"
-                className="nav-link text-white"
+                className="nav-link text-white text-nowrap"
                 onClick={() =>
                   handleProtectedNavigation("/customer/addresses")
                 }
@@ -371,14 +476,15 @@ function CustomerHome() {
               </button>
             </div>
 
-            <div className="d-flex align-items-center gap-2 mt-3 mt-lg-0">
+            {/* CUSTOMER ACCOUNT */}
+            <div className="d-flex align-items-center gap-2 mt-3 mt-xl-0">
               {isLoggedIn ? (
                 <>
                   <span
                     className="rounded-circle d-flex align-items-center justify-content-center text-white fw-bold flex-shrink-0"
                     style={{
-                      width: 38,
-                      height: 38,
+                      width: 34,
+                      height: 34,
                       background: "#a044d9",
                     }}
                   >
@@ -409,7 +515,7 @@ function CustomerHome() {
 
                   <button
                     type="button"
-                    className="btn btn-light btn-sm"
+                    className="btn btn-light btn-sm text-nowrap"
                     style={{ color: DARK }}
                     onClick={() => openAuthPage("/customer/register")}
                   >
@@ -421,6 +527,47 @@ function CustomerHome() {
           </div>
         </div>
       </nav>
+
+      {/* MOBILE SEARCH: shown below navbar on small screens */}
+      <div
+        className="d-xl-none px-3 py-2"
+        style={{ backgroundColor: LIGHT_PURPLE }}
+      >
+        <form
+          onSubmit={(event) => {
+            event.preventDefault();
+            document
+              .getElementById("restaurants")
+              ?.scrollIntoView({ behavior: "smooth" });
+          }}
+        >
+          <div className="input-group rounded-pill overflow-hidden bg-white">
+            <span className="input-group-text bg-white border-0">
+              🔎
+            </span>
+
+            <input
+              type="search"
+              className="form-control border-0 shadow-none"
+              placeholder="Search food or restaurants..."
+              value={search}
+              onChange={(event) => setSearch(event.target.value)}
+              aria-label="Search food or restaurants"
+            />
+
+            {search && (
+              <button
+                type="button"
+                className="btn bg-white border-0 text-secondary"
+                onClick={() => setSearch("")}
+                aria-label="Clear search"
+              >
+                ✕
+              </button>
+            )}
+          </div>
+        </form>
+      </div>
 
       <main
         className="container-fluid px-3 px-xl-4 py-3"
@@ -457,40 +604,10 @@ function CustomerHome() {
                 <span style={{ color: "#a33de0" }}>Happy Mood!</span>
               </h1>
 
-              <p className="text-secondary mb-3">
+              <p className="text-secondary mb-0">
                 Order your favourite food from the best restaurants and
                 get it delivered to your doorstep.
               </p>
-
-              <form
-                className="input-group rounded-3 overflow-hidden bg-white shadow-sm"
-                onSubmit={(event) => {
-                  event.preventDefault();
-                  document
-                    .getElementById("restaurants")
-                    ?.scrollIntoView({ behavior: "smooth" });
-                }}
-              >
-                <span className="input-group-text bg-white border-end-0">
-                  🔎
-                </span>
-
-                <input
-                  className="form-control border-start-0 border-end-0"
-                  placeholder="Search restaurants or cuisines..."
-                  value={search}
-                  onChange={(event) => setSearch(event.target.value)}
-                  aria-label="Search restaurants or cuisines"
-                />
-
-                <button
-                  type="submit"
-                  className="btn text-white fw-semibold px-3"
-                  style={{ backgroundColor: PURPLE }}
-                >
-                  Search
-                </button>
-              </form>
             </div>
 
             <div
@@ -531,6 +648,7 @@ function CustomerHome() {
             role="status"
           >
             <span className="flex-grow-1">{message}</span>
+
             <button
               type="button"
               className="btn-close ms-2"
@@ -543,6 +661,7 @@ function CustomerHome() {
         {error && (
           <div className="alert alert-danger" role="alert">
             {error}
+
             <button
               type="button"
               className="btn btn-sm btn-outline-danger ms-2"
@@ -598,6 +717,7 @@ function CustomerHome() {
                     <span className="d-block mb-2 fs-3">
                       {cuisine.icon}
                     </span>
+
                     <span className="small fw-semibold">
                       {cuisine.name}
                     </span>
@@ -639,6 +759,7 @@ function CustomerHome() {
                   Loading restaurants...
                 </span>
               </div>
+
               <p className="text-secondary mt-3">
                 Loading restaurants from the database...
               </p>
@@ -714,6 +835,7 @@ function CustomerHome() {
 
                       <div className="d-flex flex-wrap justify-content-between gap-2 text-secondary small mb-3">
                         <span>◷ {restaurant.time}</span>
+
                         <span>
                           🚲{" "}
                           {restaurant.freeDelivery
@@ -745,10 +867,13 @@ function CustomerHome() {
           ) : (
             <div className="text-center p-5 bg-light rounded-4">
               <div className="display-4">🔎</div>
+
               <h4 className="fw-bold mt-3">No restaurants found</h4>
+
               <p className="text-secondary">
                 Try another search or cuisine.
               </p>
+
               <button
                 type="button"
                 className="btn rounded-pill text-white"

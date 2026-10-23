@@ -1,9 +1,32 @@
-import { useEffect, useState } from "react";
+
+import { useCallback, useEffect, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 
 const PURPLE = "#641bc2";
 const DARK = "#351078";
 const API = "https://foodxpress-fmpb.onrender.com";
+
+function getCartQuantity(data) {
+  if (!data) return 0;
+
+  if (typeof data.totalQuantity === "number") {
+    return data.totalQuantity;
+  }
+
+  const items = Array.isArray(data)
+    ? data
+    : data.items || data.cartItems || data.cart?.items || [];
+
+  if (Array.isArray(items)) {
+    return items.reduce(
+      (total, item) =>
+        total + Number(item.quantity ?? item.count ?? 0),
+      0
+    );
+  }
+
+  return 0;
+}
 
 function CustomerMenu() {
   const { restaurantId } = useParams();
@@ -16,6 +39,64 @@ function CustomerMenu() {
   const [search, setSearch] = useState("");
   const [foodType, setFoodType] = useState("ALL");
   const [message, setMessage] = useState("");
+  const [cartCount, setCartCount] = useState(0);
+  const [addedQuantities, setAddedQuantities] = useState({});
+  const [addingItemId, setAddingItemId] = useState(null);
+
+  const refreshCartCount = useCallback(async () => {
+    const token = sessionStorage.getItem("customerToken");
+
+    if (!token) {
+      setCartCount(0);
+      return;
+    }
+
+    try {
+      const response = await fetch(`${API}/api/cart`, {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      });
+
+      if (!response.ok) return;
+
+      const data = await response.json();
+      setCartCount(getCartQuantity(data));
+
+      // Synchronize the per-food-item quantities with the cart.
+      const items = Array.isArray(data)
+        ? data
+        : data.items || data.cartItems || data.cart?.items || [];
+
+      if (Array.isArray(items)) {
+        const quantities = {};
+
+        items.forEach((cartItem) => {
+          const foodId =
+            cartItem.foodItemId ??
+            cartItem.foodItem?.id ??
+            cartItem.item?.id ??
+            cartItem.food?.id;
+
+          const quantity = Number(
+            cartItem.quantity ?? cartItem.count ?? 0
+          );
+
+          if (foodId != null && quantity > 0) {
+            quantities[foodId] = quantity;
+          }
+        });
+
+        setAddedQuantities(quantities);
+      }
+    } catch (err) {
+      console.error("Unable to refresh cart count:", err);
+    }
+  }, []);
+
+  useEffect(() => {
+    refreshCartCount();
+  }, [refreshCartCount]);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -58,7 +139,7 @@ function CustomerMenu() {
           console.error("Menu API error:", err);
           setError(
             err.message ||
-              "Unable to load menu. Please check whether the backend is running."
+              "Unable to load menu. Please check the backend."
           );
         }
       } finally {
@@ -96,7 +177,6 @@ function CustomerMenu() {
     setFoodType((current) => (current === type ? "ALL" : type));
   };
 
-  // Add food to cart using JWT authentication.
   const addToCart = async (item) => {
     const token = sessionStorage.getItem("customerToken");
 
@@ -106,6 +186,9 @@ function CustomerMenu() {
       });
       return;
     }
+
+    setAddingItemId(item.id);
+    setMessage("");
 
     try {
       const response = await fetch(`${API}/api/cart/items`, {
@@ -135,10 +218,19 @@ function CustomerMenu() {
         );
       }
 
+      // Increase this food item's quantity after a successful response.
+      setAddedQuantities((previous) => ({
+        ...previous,
+        [item.id]: (previous[item.id] || 0) + 1,
+      }));
+
+      await refreshCartCount();
       setMessage(`${item.name} added to your cart.`);
     } catch (err) {
       console.error("Add to cart error:", err);
       setMessage(err.message || "Unable to add food to cart.");
+    } finally {
+      setAddingItemId(null);
     }
   };
 
@@ -182,11 +274,16 @@ function CustomerMenu() {
 
             <button
               type="button"
-              className="btn btn-light rounded-pill"
+              className="btn btn-light rounded-pill position-relative"
               style={{ color: PURPLE }}
               onClick={() => navigate("/customer/cart")}
             >
               🛒 Cart
+              {cartCount > 0 && (
+                <span className="badge rounded-pill bg-danger ms-2">
+                  {cartCount}
+                </span>
+              )}
             </button>
           </div>
         </div>
@@ -213,11 +310,9 @@ function CustomerMenu() {
                   <h1 className="fw-bold" style={{ color: DARK }}>
                     {restaurant.name}
                   </h1>
-
                   <p className="text-secondary mb-2">
                     {restaurant.description}
                   </p>
-
                   <div className="d-flex flex-wrap gap-3 small">
                     <span className="fw-semibold">
                       ⭐ {Number(restaurant.rating ?? 0).toFixed(1)}
@@ -400,10 +495,7 @@ function CustomerMenu() {
         </div>
 
         {message && (
-          <div
-            className="alert alert-info alert-dismissible"
-            role="status"
-          >
+          <div className="alert alert-info alert-dismissible" role="status">
             {message}
             <button
               type="button"
@@ -518,10 +610,20 @@ function CustomerMenu() {
                           <button
                             type="button"
                             className="btn btn-sm text-white rounded-pill px-3"
-                            style={{ backgroundColor: PURPLE }}
+                            style={{
+                              backgroundColor: addedQuantities[item.id]
+                                ? "#198754"
+                                : PURPLE,
+                              whiteSpace: "nowrap",
+                            }}
+                            disabled={addingItemId === item.id}
                             onClick={() => addToCart(item)}
                           >
-                            + Add
+                            {addingItemId === item.id
+                              ? "Adding..."
+                              : addedQuantities[item.id]
+                                ? `Added · ${addedQuantities[item.id]}`
+                                : "+ Add"}
                           </button>
                         </div>
                       </div>
