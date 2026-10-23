@@ -6,18 +6,48 @@ const PURPLE = "#641bc2";
 const DARK = "#351078";
 const API = "https://foodxpress-fmpb.onrender.com";
 
-// Use a food-specific image for known items.
-// Other items continue to use their image URL from the database.
+// Food-specific images
 const FOOD_IMAGES = {
   dosa: "https://images.unsplash.com/photo-1668236543090-82eba5ee5976?auto=format&fit=crop&w=800&q=85",
   idli: "https://images.unsplash.com/photo-1589301760014-d929f3979dbc?auto=format&fit=crop&w=800&q=85",
+  noodles:
+    "https://images.unsplash.com/photo-1569718212165-3a8278d5f624?auto=format&fit=crop&w=800&q=85",
+  friedRice:
+    "https://images.unsplash.com/photo-1603133872878-684f208fb84b?auto=format&fit=crop&w=800&q=85",
+  gardenSalad:
+    "https://images.unsplash.com/photo-1512621776951-a57141f2eefd?auto=format&fit=crop&w=800&q=85",
+  paneerSalad:
+    "https://images.unsplash.com/photo-1540420773420-3366772f4999?auto=format&fit=crop&w=800&q=85",
+  mangoJuice:
+    "https://images.unsplash.com/photo-1600271886742-f049cd451bba?auto=format&fit=crop&w=800&q=85",
+  oreoShake:
+    "https://images.unsplash.com/photo-1572490122747-3968b75cc699?auto=format&fit=crop&w=800&q=85",
 };
+
+function getDisplayName(item) {
+  const name = (item?.name || "").toLowerCase();
+
+  if (name.includes("strawberry shake")) {
+    return "Oreo Shake";
+  }
+
+  return item?.name || "Food Item";
+}
 
 function getFoodImage(item) {
   const name = (item?.name || "").toLowerCase();
 
   if (name.includes("dosa")) return FOOD_IMAGES.dosa;
   if (name.includes("idli")) return FOOD_IMAGES.idli;
+  if (name.includes("noodle")) return FOOD_IMAGES.noodles;
+  if (name.includes("fried rice")) return FOOD_IMAGES.friedRice;
+  if (name.includes("garden salad")) return FOOD_IMAGES.gardenSalad;
+  if (name.includes("paneer salad")) return FOOD_IMAGES.paneerSalad;
+  if (name.includes("mango juice")) return FOOD_IMAGES.mangoJuice;
+
+  if (name.includes("oreo shake") || name.includes("strawberry shake")) {
+    return FOOD_IMAGES.oreoShake;
+  }
 
   return item?.imageUrl || item?.image || "";
 }
@@ -85,9 +115,7 @@ function CustomerMenu() {
 
     try {
       const response = await fetch(`${API}/api/cart`, {
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
+        headers: { Authorization: `Bearer ${token}` },
       });
 
       if (!response.ok) return;
@@ -169,14 +197,10 @@ function CustomerMenu() {
       } catch (err) {
         if (err.name !== "AbortError") {
           console.error("Menu API error:", err);
-          setError(
-            err.message || "Unable to load menu. Please check the backend."
-          );
+          setError(err.message || "Unable to load menu. Please check the backend.");
         }
       } finally {
-        if (!controller.signal.aborted) {
-          setLoading(false);
-        }
+        if (!controller.signal.aborted) setLoading(false);
       }
     };
 
@@ -187,7 +211,7 @@ function CustomerMenu() {
 
   const filteredItems = foodItems.filter((item) => {
     const query = search.trim().toLowerCase();
-    const name = (item.name || "").toLowerCase();
+    const name = getDisplayName(item).toLowerCase();
     const category = (item.category || "").toLowerCase();
     const description = (item.description || "").toLowerCase();
 
@@ -257,14 +281,12 @@ function CustomerMenu() {
 
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}));
-        throw new Error(
-          errorData.message || "Unable to add food to cart."
-        );
+        throw new Error(errorData.message || "Unable to add food to cart.");
       }
 
       await refreshCartCount();
       window.dispatchEvent(new Event("cartUpdated"));
-      setMessage(`${item.name} added to your cart.`);
+      setMessage(`${getDisplayName(item)} added to your cart.`);
     } catch (err) {
       console.error("Add to cart error:", err);
       setMessage(err.message || "Unable to add food to cart.");
@@ -289,9 +311,7 @@ function CustomerMenu() {
     if (quantity <= 0 || busyItemIds.includes(foodId)) return;
 
     if (cartItemId == null) {
-      setMessage(
-        "Unable to identify this cart item. Please open your cart and try again."
-      );
+      setMessage("Unable to identify this cart item. Please open your cart and try again.");
       await refreshCartCount();
       return;
     }
@@ -302,19 +322,16 @@ function CustomerMenu() {
     try {
       const isLastItem = quantity === 1;
 
-      const response = await fetch(
-        `${API}/api/cart/items/${cartItemId}`,
-        {
-          method: isLastItem ? "DELETE" : "PUT",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${token}`,
-          },
-          ...(!isLastItem && {
-            body: JSON.stringify({ quantity: quantity - 1 }),
-          }),
-        }
-      );
+      const response = await fetch(`${API}/api/cart/items/${cartItemId}`, {
+        method: isLastItem ? "DELETE" : "PUT",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        ...(!isLastItem && {
+          body: JSON.stringify({ quantity: quantity - 1 }),
+        }),
+      });
 
       if (response.status === 401) {
         sessionStorage.removeItem("customerToken");
@@ -326,9 +343,7 @@ function CustomerMenu() {
 
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}));
-        throw new Error(
-          errorData.message || "Unable to update cart quantity."
-        );
+        throw new Error(errorData.message || "Unable to update cart quantity.");
       }
 
       await refreshCartCount();
@@ -336,8 +351,8 @@ function CustomerMenu() {
 
       setMessage(
         isLastItem
-          ? `${item.name} removed from your cart.`
-          : `${item.name} quantity decreased.`
+          ? `${getDisplayName(item)} removed from your cart.`
+          : `${getDisplayName(item)} quantity decreased.`
       );
     } catch (err) {
       console.error("Decrease quantity error:", err);
@@ -356,26 +371,20 @@ function CustomerMenu() {
     <div className="min-vh-100 bg-light">
       <nav
         className="navbar navbar-dark"
-        style={{
-          background: "linear-gradient(100deg, #51208f, #381071)",
-        }}
+        style={{ background: "linear-gradient(100deg, #51208f, #381071)" }}
       >
         <div className="container-fluid px-3 px-xl-5">
           <Link
             to="/customer/home"
             className="navbar-brand d-flex align-items-center gap-2"
           >
-            
             <span className="fw-bold fs-4">
-               ♨ Food <span style={{ color: "#d9a2ff" }}>Xpress</span>
+              Food <span style={{ color: "#d9a2ff" }}>Xpress</span>
             </span>
           </Link>
 
           <div className="d-flex gap-2">
-            <Link
-              to="/customer/home"
-              className="btn btn-outline-light rounded-pill"
-            >
+            <Link to="/customer/home" className="btn btn-outline-light rounded-pill">
               ← Home
             </Link>
 
@@ -400,9 +409,7 @@ function CustomerMenu() {
         {restaurant && (
           <section
             className="card border-0 rounded-4 overflow-hidden mb-4 shadow-sm"
-            style={{
-              background: "linear-gradient(110deg, #f4e9ff, #e8d4ff)",
-            }}
+            style={{ background: "linear-gradient(110deg, #f4e9ff, #e8d4ff)" }}
           >
             <div className="card-body p-4 p-lg-5">
               <span
@@ -417,21 +424,14 @@ function CustomerMenu() {
                   <h1 className="fw-bold" style={{ color: DARK }}>
                     {restaurant.name}
                   </h1>
-                  <p className="text-secondary mb-2">
-                    {restaurant.description}
-                  </p>
+                  <p className="text-secondary mb-2">{restaurant.description}</p>
                   <div className="d-flex flex-wrap gap-3 small">
                     <span className="fw-semibold">
                       ⭐ {Number(restaurant.rating ?? 0).toFixed(1)}
                     </span>
+                    <span>🕒 {restaurant.deliveryTimeMinutes ?? "N/A"} mins</span>
                     <span>
-                      🕒 {restaurant.deliveryTimeMinutes ?? "N/A"} mins
-                    </span>
-                    <span>
-                      🚲{" "}
-                      {restaurant.freeDelivery
-                        ? "Free delivery"
-                        : "Delivery charges apply"}
+                      🚲 {restaurant.freeDelivery ? "Free delivery" : "Delivery charges apply"}
                     </span>
                   </div>
                 </div>
@@ -448,23 +448,15 @@ function CustomerMenu() {
 
         <div className="row align-items-center g-3 mb-4">
           <div className="col-12 col-xl-4">
-            <h2 className="fw-bold mb-1" style={{ color: DARK }}>
-              Our Menu
-            </h2>
-            <p className="text-secondary mb-0">
-              Discover something delicious.
-            </p>
+            <h2 className="fw-bold mb-1" style={{ color: DARK }}>Our Menu</h2>
+            <p className="text-secondary mb-0">Discover something delicious.</p>
           </div>
 
           <div className="col-12 col-xl-8">
             <div className="d-flex flex-wrap justify-content-xl-end align-items-center gap-2">
               <div
                 className="input-group"
-                style={{
-                  flex: "1 1 220px",
-                  maxWidth: 350,
-                  minWidth: 200,
-                }}
+                style={{ flex: "1 1 220px", maxWidth: 350, minWidth: 200 }}
               >
                 <span className="input-group-text bg-white">🔎</span>
                 <input
@@ -486,9 +478,7 @@ function CustomerMenu() {
                   minHeight: 42,
                   backgroundColor: foodType === "ALL" ? PURPLE : "#ffffff",
                   color: foodType === "ALL" ? "#ffffff" : DARK,
-                  border: `1px solid ${
-                    foodType === "ALL" ? PURPLE : "#ced4da"
-                  }`,
+                  border: `1px solid ${foodType === "ALL" ? PURPLE : "#ced4da"}`,
                 }}
               >
                 All Food
@@ -503,9 +493,7 @@ function CustomerMenu() {
                   minHeight: 42,
                   backgroundColor: foodType === "VEG" ? "#198754" : "#ffffff",
                   color: foodType === "VEG" ? "#ffffff" : "#198754",
-                  border: `1px solid ${
-                    foodType === "VEG" ? "#198754" : "#a8d5bc"
-                  }`,
+                  border: `1px solid ${foodType === "VEG" ? "#198754" : "#a8d5bc"}`,
                   whiteSpace: "nowrap",
                 }}
               >
@@ -516,9 +504,7 @@ function CustomerMenu() {
                     display: "inline-flex",
                     alignItems: "center",
                     justifyContent: "center",
-                    border: `2px solid ${
-                      foodType === "VEG" ? "#ffffff" : "#198754"
-                    }`,
+                    border: `2px solid ${foodType === "VEG" ? "#ffffff" : "#198754"}`,
                     borderRadius: 3,
                   }}
                 >
@@ -527,15 +513,12 @@ function CustomerMenu() {
                       width: 7,
                       height: 7,
                       borderRadius: "50%",
-                      backgroundColor:
-                        foodType === "VEG" ? "#ffffff" : "#198754",
+                      backgroundColor: foodType === "VEG" ? "#ffffff" : "#198754",
                     }}
                   />
                 </span>
                 <span>Veg</span>
-                <span className="small fw-semibold">
-                  {foodType === "VEG" ? "ON" : "OFF"}
-                </span>
+                <span className="small fw-semibold">{foodType === "VEG" ? "ON" : "OFF"}</span>
               </button>
 
               <button
@@ -545,12 +528,9 @@ function CustomerMenu() {
                 className="btn rounded-3 px-3 d-inline-flex align-items-center justify-content-center gap-2"
                 style={{
                   minHeight: 42,
-                  backgroundColor:
-                    foodType === "NON_VEG" ? "#dc3545" : "#ffffff",
+                  backgroundColor: foodType === "NON_VEG" ? "#dc3545" : "#ffffff",
                   color: foodType === "NON_VEG" ? "#ffffff" : "#dc3545",
-                  border: `1px solid ${
-                    foodType === "NON_VEG" ? "#dc3545" : "#efb6bd"
-                  }`,
+                  border: `1px solid ${foodType === "NON_VEG" ? "#dc3545" : "#efb6bd"}`,
                   whiteSpace: "nowrap",
                 }}
               >
@@ -561,9 +541,7 @@ function CustomerMenu() {
                     display: "inline-flex",
                     alignItems: "center",
                     justifyContent: "center",
-                    border: `2px solid ${
-                      foodType === "NON_VEG" ? "#ffffff" : "#dc3545"
-                    }`,
+                    border: `2px solid ${foodType === "NON_VEG" ? "#ffffff" : "#dc3545"}`,
                     borderRadius: 3,
                   }}
                 >
@@ -572,15 +550,12 @@ function CustomerMenu() {
                       width: 7,
                       height: 7,
                       borderRadius: "50%",
-                      backgroundColor:
-                        foodType === "NON_VEG" ? "#ffffff" : "#dc3545",
+                      backgroundColor: foodType === "NON_VEG" ? "#ffffff" : "#dc3545",
                     }}
                   />
                 </span>
                 <span>Non-Veg</span>
-                <span className="small fw-semibold">
-                  {foodType === "NON_VEG" ? "ON" : "OFF"}
-                </span>
+                <span className="small fw-semibold">{foodType === "NON_VEG" ? "ON" : "OFF"}</span>
               </button>
             </div>
 
@@ -612,16 +587,10 @@ function CustomerMenu() {
 
         {loading && (
           <div className="text-center py-5">
-            <div
-              className="spinner-border"
-              style={{ color: PURPLE }}
-              role="status"
-            >
+            <div className="spinner-border" style={{ color: PURPLE }} role="status">
               <span className="visually-hidden">Loading menu...</span>
             </div>
-            <p className="text-secondary mt-3">
-              Loading menu from database...
-            </p>
+            <p className="text-secondary mt-3">Loading menu from database...</p>
           </div>
         )}
 
@@ -649,17 +618,15 @@ function CustomerMenu() {
                   const quantity = Number(cartQuantities[foodId] || 0);
                   const isBusy = busyItemIds.includes(foodId);
                   const foodImage = getFoodImage(item);
+                  const displayName = getDisplayName(item);
 
                   return (
-                    <div
-                      className="col-12 col-sm-6 col-lg-4 col-xl-3"
-                      key={item.id}
-                    >
+                    <div className="col-12 col-sm-6 col-lg-4 col-xl-3" key={item.id}>
                       <article className="card h-100 rounded-4 overflow-hidden border-0 shadow-sm">
                         {foodImage ? (
                           <img
                             src={foodImage}
-                            alt={item.name}
+                            alt={displayName}
                             className="card-img-top"
                             loading="lazy"
                             onError={(event) => {
@@ -690,10 +657,7 @@ function CustomerMenu() {
                         <div className="card-body p-3 d-flex flex-column">
                           <span
                             className="badge rounded-pill align-self-start mb-2"
-                            style={{
-                              backgroundColor: "#f0e4ff",
-                              color: DARK,
-                            }}
+                            style={{ backgroundColor: "#f0e4ff", color: DARK }}
                           >
                             {item.category}
                           </span>
@@ -709,19 +673,17 @@ function CustomerMenu() {
                           )}
 
                           <h5 className="fw-bold mb-2" style={{ color: DARK }}>
-                            {item.name}
+                            {displayName}
                           </h5>
 
                           <p className="text-secondary small">
-                            {item.description ||
-                              "Delicious food, freshly prepared."}
+                            {item.name?.toLowerCase().includes("strawberry shake")
+                              ? "Creamy Oreo chocolate milkshake"
+                              : item.description || "Delicious food, freshly prepared."}
                           </p>
 
                           <div className="d-flex justify-content-between align-items-center mt-auto gap-2">
-                            <span
-                              className="fw-bold fs-5"
-                              style={{ color: PURPLE }}
-                            >
+                            <span className="fw-bold fs-5" style={{ color: PURPLE }}>
                               ₹{Number(item.price).toFixed(2)}
                             </span>
 
@@ -738,14 +700,11 @@ function CustomerMenu() {
                             ) : (
                               <div
                                 className="d-inline-flex align-items-center rounded-pill overflow-hidden"
-                                style={{
-                                  border: `1px solid ${PURPLE}`,
-                                  minHeight: 36,
-                                }}
+                                style={{ border: `1px solid ${PURPLE}`, minHeight: 36 }}
                               >
                                 <button
                                   type="button"
-                                  aria-label={`Decrease ${item.name} quantity`}
+                                  aria-label={`Decrease ${displayName} quantity`}
                                   className="btn btn-sm rounded-0 fw-bold"
                                   style={{
                                     color: PURPLE,
@@ -764,17 +723,14 @@ function CustomerMenu() {
                                 <span
                                   className="fw-bold text-center px-2"
                                   aria-live="polite"
-                                  style={{
-                                    color: DARK,
-                                    minWidth: 34,
-                                  }}
+                                  style={{ color: DARK, minWidth: 34 }}
                                 >
                                   {isBusy ? "…" : quantity}
                                 </span>
 
                                 <button
                                   type="button"
-                                  aria-label={`Increase ${item.name} quantity`}
+                                  aria-label={`Increase ${displayName} quantity`}
                                   className="btn btn-sm rounded-0 fw-bold text-white"
                                   style={{
                                     backgroundColor: PURPLE,
@@ -801,9 +757,7 @@ function CustomerMenu() {
               <div className="text-center bg-white rounded-4 p-5 shadow-sm">
                 <div className="display-3 mb-3">🍽️</div>
                 <h4 className="fw-bold" style={{ color: DARK }}>
-                  {search || foodType !== "ALL"
-                    ? "No matching food found"
-                    : "Menu coming soon"}
+                  {search || foodType !== "ALL" ? "No matching food found" : "Menu coming soon"}
                 </h4>
                 <p className="text-secondary">
                   {search || foodType !== "ALL"
