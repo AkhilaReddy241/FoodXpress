@@ -35,7 +35,6 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
             return true;
         }
 
-        // Allow public customer authentication endpoints.
         if (HttpMethod.POST.matches(method)) {
             if (path.endsWith("/")) {
                 path = path.substring(0, path.length() - 1);
@@ -48,7 +47,6 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                     || path.equals("/api/customers/reset-password");
         }
 
-        // Allow public restaurant and cuisine browsing.
         if (HttpMethod.GET.matches(method)) {
             return path.equals("/api/restaurants")
                     || path.startsWith("/api/restaurants/")
@@ -75,7 +73,12 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
             return;
         }
 
-        String token = authorizationHeader.substring(7);
+        String token = authorizationHeader.substring(7).trim();
+
+        if (token.isEmpty()) {
+            filterChain.doFilter(request, response);
+            return;
+        }
 
         try {
             Claims claims = jwtService.extractClaims(token);
