@@ -1,5 +1,5 @@
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 
 const API_URL =
@@ -29,8 +29,42 @@ function CustomerAddresses() {
 
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
+  const [messageType, setMessageType] = useState("success");
+
+  const messageTimer = useRef(null);
 
   const getToken = () => sessionStorage.getItem("customerToken");
+
+  const showMessage = useCallback((text, type = "success") => {
+    if (messageTimer.current) {
+      clearTimeout(messageTimer.current);
+    }
+
+    setMessage(text);
+    setMessageType(type);
+
+    messageTimer.current = setTimeout(() => {
+      setMessage("");
+      messageTimer.current = null;
+    }, 3000);
+  }, []);
+
+  const dismissMessage = () => {
+    if (messageTimer.current) {
+      clearTimeout(messageTimer.current);
+      messageTimer.current = null;
+    }
+
+    setMessage("");
+  };
+
+  useEffect(() => {
+    return () => {
+      if (messageTimer.current) {
+        clearTimeout(messageTimer.current);
+      }
+    };
+  }, []);
 
   const handleUnauthorized = (response) => {
     if (response.status !== 401 && response.status !== 403) {
@@ -106,21 +140,14 @@ function CustomerAddresses() {
   const resetForm = () => {
     setForm({ ...emptyAddress });
     setEditingId(null);
-    setError("");
-    setMessage("");
   };
 
-  // FIX: Read both camelCase and snake_case field names.
   const handleEdit = (address) => {
-    console.log("Selected address for editing:", address);
-
     const addressId =
       address.id ?? address.addressId ?? address.address_id;
 
     if (addressId == null) {
-      setError(
-        "Cannot edit this address because its ID is missing. Please check the backend address response."
-      );
+      setError("Unable to edit this address because its ID is missing.");
       return;
     }
 
@@ -145,14 +172,12 @@ function CustomerAddresses() {
         address.pincode ?? address.pinCode ?? address.pin_code ?? ""
       ),
       defaultAddress: Boolean(
-        address.defaultAddress ??
-        address.default_address ??
-        false
+        address.defaultAddress ?? address.default_address ?? false
       ),
     });
 
     setError("");
-    setMessage("");
+    dismissMessage();
 
     window.scrollTo({
       top: 0,
@@ -164,7 +189,7 @@ function CustomerAddresses() {
     event.preventDefault();
 
     setError("");
-    setMessage("");
+    dismissMessage();
 
     const phone = form.phone.trim();
     const pincode = form.pincode.trim();
@@ -186,6 +211,8 @@ function CustomerAddresses() {
       return;
     }
 
+    const wasEditing = editingId != null;
+
     const payload = {
       label: form.label.trim(),
       recipientName: form.recipientName.trim(),
@@ -200,12 +227,10 @@ function CustomerAddresses() {
     setSaving(true);
 
     try {
-      const url = editingId != null
-        ? `${API_URL}/${editingId}`
-        : API_URL;
+      const url = wasEditing ? `${API_URL}/${editingId}` : API_URL;
 
       const response = await fetch(url, {
-        method: editingId != null ? "PUT" : "POST",
+        method: wasEditing ? "PUT" : "POST",
         headers: {
           Authorization: `Bearer ${token}`,
           "Content-Type": "application/json",
@@ -223,14 +248,14 @@ function CustomerAddresses() {
         );
       }
 
-      setMessage(
-        editingId != null
-          ? "Address updated successfully."
-          : "Address added successfully."
-      );
-
       resetForm();
       await fetchAddresses();
+
+      showMessage(
+        wasEditing
+          ? "Address edited successfully!"
+          : "Address saved successfully!"
+      );
     } catch (err) {
       console.error("Address save error:", err);
 
@@ -260,7 +285,7 @@ function CustomerAddresses() {
 
     setDeletingId(addressId);
     setError("");
-    setMessage("");
+    dismissMessage();
 
     try {
       const response = await fetch(`${API_URL}/${addressId}`, {
@@ -284,8 +309,8 @@ function CustomerAddresses() {
         resetForm();
       }
 
-      setMessage("Address deleted successfully.");
       await fetchAddresses();
+      showMessage("Address deleted successfully!");
     } catch (err) {
       console.error("Address deletion error:", err);
 
@@ -307,7 +332,7 @@ function CustomerAddresses() {
           role="button"
           onClick={() => navigate("/customer/home")}
         >
-          ♨  Food Xpress
+          🍽️ Food Xpress
         </span>
 
         <div className="d-flex flex-wrap gap-2">
@@ -360,8 +385,17 @@ function CustomerAddresses() {
         )}
 
         {message && (
-          <div className="alert alert-success" role="alert">
+          <div
+            className={`alert alert-${messageType} alert-dismissible fade show`}
+            role="alert"
+          >
             {message}
+            <button
+              type="button"
+              className="btn-close"
+              aria-label="Close"
+              onClick={dismissMessage}
+            />
           </div>
         )}
 
@@ -571,6 +605,7 @@ function CustomerAddresses() {
           <div className="col-lg-7">
             <div className="d-flex justify-content-between align-items-center mb-3">
               <h5 className="fw-bold mb-0">Your Saved Addresses</h5>
+
               <button
                 type="button"
                 className="btn btn-outline-primary btn-sm"
@@ -608,6 +643,13 @@ function CustomerAddresses() {
                   const addressId =
                     address.id ?? address.addressId ?? address.address_id;
 
+                  const label =
+                    address.label ?? address.addressType ?? "Home";
+
+                  const isDefault = Boolean(
+                    address.defaultAddress ?? address.default_address
+                  );
+
                   return (
                     <div
                       className="card border-0 shadow-sm"
@@ -616,12 +658,9 @@ function CustomerAddresses() {
                       <div className="card-body p-4">
                         <div className="d-flex justify-content-between align-items-start gap-2 mb-3">
                           <div className="d-flex align-items-center gap-2 flex-wrap">
-                            <span className="badge bg-primary">
-                              {address.label ?? address.addressType ?? "Home"}
-                            </span>
+                            <span className="badge bg-primary">{label}</span>
 
-                            {(address.defaultAddress ??
-                              address.default_address) && (
+                            {isDefault && (
                               <span className="badge bg-success">
                                 Default Address
                               </span>

@@ -365,15 +365,9 @@ function CustomerMenu() {
             to="/customer/home"
             className="navbar-brand d-flex align-items-center gap-2"
           >
-            <img
-              src="/food-home-icon.png"
-              alt="Food Xpress logo"
-              width="40"
-              height="40"
-              style={{ objectFit: "contain" }}
-            />
+            
             <span className="fw-bold fs-4">
-              Food <span style={{ color: "#d9a2ff" }}>Xpress</span>
+               ♨ Food <span style={{ color: "#d9a2ff" }}>Xpress</span>
             </span>
           </Link>
 
