@@ -20,7 +20,6 @@ function CustomerRegister() {
   const [loading, setLoading] = useState(false);
   const [success, setSuccess] = useState(false);
 
-  // Automatically navigate home after showing the success message.
   useEffect(() => {
     if (!success) return;
 
@@ -97,18 +96,34 @@ function CustomerRegister() {
       }
 
       if (!response.ok) {
+        const serverMessage = String(
+          data.detail || data.message || data.error || ""
+        );
+
+        const duplicateEmail =
+          response.status === 409 ||
+          /email.*(already|exist|registered|taken|duplicate)|(?:already|exist|registered|taken|duplicate).*email/i.test(
+            serverMessage
+          ) ||
+          /duplicate entry/i.test(serverMessage);
+
+        if (duplicateEmail) {
+          throw new Error(
+            "This email is already registered. Please login or use another email address."
+          );
+        }
+
+        if (response.status === 400) {
+          throw new Error(
+            serverMessage || "Please check your registration details."
+          );
+        }
+
         throw new Error(
-          data.detail ||
-            data.message ||
-            (response.status === 409
-              ? "This email is already registered."
-              : response.status === 400
-                ? "Please check your registration details."
-                : "Registration failed. Please try again.")
+          serverMessage || "Registration failed. Please try again."
         );
       }
 
-      // Store the session if the backend returns a token.
       if (data.token) {
         sessionStorage.setItem("customerToken", data.token);
         sessionStorage.setItem("customerLoggedIn", "true");
@@ -126,7 +141,6 @@ function CustomerRegister() {
         }
       }
 
-      // Show success first, then navigate home.
       setSuccess(true);
     } catch (err) {
       console.error("Customer registration error:", err);
@@ -159,7 +173,6 @@ function CustomerRegister() {
         className="row g-0 m-0 w-100 overflow-hidden shadow"
         style={{ maxWidth: "900px", borderRadius: "12px" }}
       >
-        {/* LEFT FOOD PANEL */}
         <div
           className="col-md-5 text-white position-relative overflow-hidden p-3 p-lg-4 d-flex flex-column"
           style={{
@@ -244,7 +257,6 @@ function CustomerRegister() {
           </div>
         </div>
 
-        {/* RIGHT REGISTRATION FORM */}
         <div
           className="col-md-7 d-flex align-items-center justify-content-center p-0"
           style={{ background: "#ffffff" }}
@@ -273,9 +285,7 @@ function CustomerRegister() {
                 role="status"
                 aria-live="polite"
               >
-                <div className="fw-bold">
-                  ✅ Registration Successful!
-                </div>
+                <div className="fw-bold">✅ Registration Successful!</div>
                 <div className="small mt-1">
                   Welcome to Food Xpress! Redirecting to home...
                 </div>
@@ -285,6 +295,17 @@ function CustomerRegister() {
             {error && (
               <div className="alert alert-danger py-2 small" role="alert">
                 {error}
+                {error.toLowerCase().includes("email is already registered") && (
+                  <div className="mt-2">
+                    <Link
+                      to="/customer/login"
+                      className="fw-bold text-decoration-underline"
+                      style={{ color: "#842029" }}
+                    >
+                      Go to Login
+                    </Link>
+                  </div>
+                )}
               </div>
             )}
 
