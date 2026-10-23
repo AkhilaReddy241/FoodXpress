@@ -10,16 +10,12 @@ const API = "https://foodxpress-fmpb.onrender.com";
 const FOOD_IMAGES = {
   dosa: "https://images.unsplash.com/photo-1668236543090-82eba5ee5976?auto=format&fit=crop&w=800&q=85",
   idli: "https://images.unsplash.com/photo-1589301760014-d929f3979dbc?auto=format&fit=crop&w=800&q=85",
-  noodles:
-    "https://images.unsplash.com/photo-1569718212165-3a8278d5f624?auto=format&fit=crop&w=800&q=85",
-  friedRice:
-    "https://images.unsplash.com/photo-1603133872878-684f208fb84b?auto=format&fit=crop&w=800&q=85",
+  noodles:"https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcTRz6Aah2uVpWZAxfC5aL6-iKE2mfqZV8kdy-naDFinUQ&s=10",
+    friedRice: "https://images.unsplash.com/photo-1603133872878-684f208fb84b?auto=format&fit=crop&w=800&q=85",
   gardenSalad:
     "https://images.unsplash.com/photo-1512621776951-a57141f2eefd?auto=format&fit=crop&w=800&q=85",
-  paneerSalad:
-    "https://images.unsplash.com/photo-1540420773420-3366772f4999?auto=format&fit=crop&w=800&q=85",
-  mangoJuice:
-    "https://images.unsplash.com/photo-1600271886742-f049cd451bba?auto=format&fit=crop&w=800&q=85",
+  paneerSalad:"https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcQ9lT07RulZ7y7sjUgu_7IRtLjRqT9VmrLwrn2gAygeNA&s=10",
+     mangoJuice:    "https://images.unsplash.com/photo-1600271886742-f049cd451bba?auto=format&fit=crop&w=800&q=85",
   oreoShake:
     "https://images.unsplash.com/photo-1572490122747-3968b75cc699?auto=format&fit=crop&w=800&q=85",
 };
@@ -27,7 +23,7 @@ const FOOD_IMAGES = {
 function getDisplayName(item) {
   const name = (item?.name || "").toLowerCase();
 
-  if (name.includes("strawberry shake")) {
+  if (name.includes("Oreo Shake")) {
     return "Oreo Shake";
   }
 
