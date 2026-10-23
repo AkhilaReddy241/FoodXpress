@@ -325,7 +325,7 @@ function CustomerCart() {
       const response = await fetch(`${API_URL}/cart/coupon`, {
         method: "POST",
         headers,
-        body: JSON.stringify({ couponCode: code }),
+        body: JSON.stringify({ code: code }),
       });
 
       if (handleUnauthorized(response)) return;
