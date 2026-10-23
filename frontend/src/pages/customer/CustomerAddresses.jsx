@@ -106,6 +106,58 @@ function CustomerAddresses() {
   const resetForm = () => {
     setForm({ ...emptyAddress });
     setEditingId(null);
+    setError("");
+    setMessage("");
+  };
+
+  // FIX: Read both camelCase and snake_case field names.
+  const handleEdit = (address) => {
+    console.log("Selected address for editing:", address);
+
+    const addressId =
+      address.id ?? address.addressId ?? address.address_id;
+
+    if (addressId == null) {
+      setError(
+        "Cannot edit this address because its ID is missing. Please check the backend address response."
+      );
+      return;
+    }
+
+    setEditingId(addressId);
+
+    setForm({
+      label: address.label ?? address.addressType ?? "Home",
+      recipientName:
+        address.recipientName ?? address.recipient_name ?? "",
+      phone: String(
+        address.phone ?? address.phoneNumber ?? address.phone_number ?? ""
+      ),
+      addressLine:
+        address.addressLine ??
+        address.address_line ??
+        address.streetAddress ??
+        address.street_address ??
+        "",
+      city: address.city ?? "",
+      state: address.state ?? "",
+      pincode: String(
+        address.pincode ?? address.pinCode ?? address.pin_code ?? ""
+      ),
+      defaultAddress: Boolean(
+        address.defaultAddress ??
+        address.default_address ??
+        false
+      ),
+    });
+
+    setError("");
+    setMessage("");
+
+    window.scrollTo({
+      top: 0,
+      behavior: "smooth",
+    });
   };
 
   const handleSubmit = async (event) => {
@@ -148,10 +200,12 @@ function CustomerAddresses() {
     setSaving(true);
 
     try {
-      const url = editingId ? `${API_URL}/${editingId}` : API_URL;
+      const url = editingId != null
+        ? `${API_URL}/${editingId}`
+        : API_URL;
 
       const response = await fetch(url, {
-        method: editingId ? "PUT" : "POST",
+        method: editingId != null ? "PUT" : "POST",
         headers: {
           Authorization: `Bearer ${token}`,
           "Content-Type": "application/json",
@@ -170,7 +224,7 @@ function CustomerAddresses() {
       }
 
       setMessage(
-        editingId
+        editingId != null
           ? "Address updated successfully."
           : "Address added successfully."
       );
@@ -188,29 +242,6 @@ function CustomerAddresses() {
     } finally {
       setSaving(false);
     }
-  };
-
-  const handleEdit = (address) => {
-    setEditingId(address.id);
-
-    setForm({
-      label: address.label || "Home",
-      recipientName: address.recipientName || "",
-      phone: address.phone || "",
-      addressLine: address.addressLine || "",
-      city: address.city || "",
-      state: address.state || "",
-      pincode: address.pincode || "",
-      defaultAddress: Boolean(address.defaultAddress),
-    });
-
-    setError("");
-    setMessage("");
-
-    window.scrollTo({
-      top: 0,
-      behavior: "smooth",
-    });
   };
 
   const handleDelete = async (addressId) => {
@@ -249,7 +280,7 @@ function CustomerAddresses() {
         );
       }
 
-      if (editingId === addressId) {
+      if (String(editingId) === String(addressId)) {
         resetForm();
       }
 
@@ -276,11 +307,12 @@ function CustomerAddresses() {
           role="button"
           onClick={() => navigate("/customer/home")}
         >
-          🍽️ Food Xpress
+          ♨  Food Xpress
         </span>
 
         <div className="d-flex flex-wrap gap-2">
           <button
+            type="button"
             className="btn btn-light btn-sm"
             onClick={() => navigate("/customer/home")}
           >
@@ -288,6 +320,7 @@ function CustomerAddresses() {
           </button>
 
           <button
+            type="button"
             className="btn btn-outline-light btn-sm"
             onClick={() => navigate("/customer/profile")}
           >
@@ -295,6 +328,7 @@ function CustomerAddresses() {
           </button>
 
           <button
+            type="button"
             className="btn btn-outline-light btn-sm"
             onClick={() => navigate("/customer/orders")}
           >
@@ -302,6 +336,7 @@ function CustomerAddresses() {
           </button>
 
           <button
+            type="button"
             className="btn btn-outline-light btn-sm"
             onClick={() => navigate("/customer/cart")}
           >
@@ -335,7 +370,7 @@ function CustomerAddresses() {
             <div className="card border-0 shadow-sm">
               <div className="card-body p-4">
                 <h5 className="fw-bold mb-4">
-                  {editingId ? "Edit Address" : "Add New Address"}
+                  {editingId != null ? "Edit Address" : "Add New Address"}
                 </h5>
 
                 <form onSubmit={handleSubmit}>
@@ -343,7 +378,6 @@ function CustomerAddresses() {
                     <label htmlFor="label" className="form-label fw-semibold">
                       Address Type
                     </label>
-
                     <select
                       id="label"
                       name="label"
@@ -366,7 +400,6 @@ function CustomerAddresses() {
                     >
                       Recipient Name
                     </label>
-
                     <input
                       id="recipientName"
                       name="recipientName"
@@ -384,7 +417,6 @@ function CustomerAddresses() {
                     <label htmlFor="phone" className="form-label fw-semibold">
                       Phone Number
                     </label>
-
                     <input
                       id="phone"
                       name="phone"
@@ -394,8 +426,9 @@ function CustomerAddresses() {
                       placeholder="10-digit mobile number"
                       value={form.phone}
                       onChange={(event) => {
-                        const value = event.target.value;
-                        if (/^\d{0,10}$/.test(value)) handleChange(event);
+                        if (/^\d{0,10}$/.test(event.target.value)) {
+                          handleChange(event);
+                        }
                       }}
                       maxLength={10}
                       required
@@ -410,7 +443,6 @@ function CustomerAddresses() {
                     >
                       House No. / Street Address
                     </label>
-
                     <textarea
                       id="addressLine"
                       name="addressLine"
@@ -430,7 +462,6 @@ function CustomerAddresses() {
                       <label htmlFor="city" className="form-label fw-semibold">
                         City
                       </label>
-
                       <input
                         id="city"
                         name="city"
@@ -451,7 +482,6 @@ function CustomerAddresses() {
                       >
                         State
                       </label>
-
                       <input
                         id="state"
                         name="state"
@@ -472,7 +502,6 @@ function CustomerAddresses() {
                       >
                         Pincode
                       </label>
-
                       <input
                         id="pincode"
                         name="pincode"
@@ -481,8 +510,9 @@ function CustomerAddresses() {
                         placeholder="6-digit pincode"
                         value={form.pincode}
                         onChange={(event) => {
-                          const value = event.target.value;
-                          if (/^\d{0,6}$/.test(value)) handleChange(event);
+                          if (/^\d{0,6}$/.test(event.target.value)) {
+                            handleChange(event);
+                          }
                         }}
                         maxLength={6}
                         required
@@ -501,7 +531,6 @@ function CustomerAddresses() {
                       onChange={handleChange}
                       disabled={saving}
                     />
-
                     <label
                       htmlFor="defaultAddress"
                       className="form-check-label"
@@ -518,12 +547,12 @@ function CustomerAddresses() {
                     >
                       {saving
                         ? "Saving..."
-                        : editingId
+                        : editingId != null
                         ? "Save Changes"
                         : "Add Address"}
                     </button>
 
-                    {editingId && (
+                    {editingId != null && (
                       <button
                         type="button"
                         className="btn btn-outline-secondary"
@@ -542,8 +571,8 @@ function CustomerAddresses() {
           <div className="col-lg-7">
             <div className="d-flex justify-content-between align-items-center mb-3">
               <h5 className="fw-bold mb-0">Your Saved Addresses</h5>
-
               <button
+                type="button"
                 className="btn btn-outline-primary btn-sm"
                 onClick={fetchAddresses}
                 disabled={loading}
@@ -558,7 +587,6 @@ function CustomerAddresses() {
                   <div className="spinner-border text-primary" role="status">
                     <span className="visually-hidden">Loading...</span>
                   </div>
-
                   <p className="text-muted mt-3 mb-0">
                     Loading saved addresses...
                   </p>
@@ -576,60 +604,91 @@ function CustomerAddresses() {
               </div>
             ) : (
               <div className="d-flex flex-column gap-3">
-                {addresses.map((address) => (
-                  <div className="card border-0 shadow-sm" key={address.id}>
-                    <div className="card-body p-4">
-                      <div className="d-flex justify-content-between align-items-start gap-2 mb-3">
-                        <div className="d-flex align-items-center gap-2 flex-wrap">
-                          <span className="badge bg-primary">
-                            {address.label}
-                          </span>
+                {addresses.map((address, index) => {
+                  const addressId =
+                    address.id ?? address.addressId ?? address.address_id;
 
-                          {address.defaultAddress && (
-                            <span className="badge bg-success">
-                              Default Address
+                  return (
+                    <div
+                      className="card border-0 shadow-sm"
+                      key={addressId ?? index}
+                    >
+                      <div className="card-body p-4">
+                        <div className="d-flex justify-content-between align-items-start gap-2 mb-3">
+                          <div className="d-flex align-items-center gap-2 flex-wrap">
+                            <span className="badge bg-primary">
+                              {address.label ?? address.addressType ?? "Home"}
                             </span>
-                          )}
+
+                            {(address.defaultAddress ??
+                              address.default_address) && (
+                              <span className="badge bg-success">
+                                Default Address
+                              </span>
+                            )}
+                          </div>
+
+                          <span className="text-muted small">
+                            #{addressId ?? "—"}
+                          </span>
                         </div>
 
-                        <span className="text-muted small">
-                          #{address.id}
-                        </span>
-                      </div>
+                        <h6 className="fw-bold mb-1">
+                          {address.recipientName ??
+                            address.recipient_name ??
+                            ""}
+                        </h6>
 
-                      <h6 className="fw-bold mb-1">
-                        {address.recipientName}
-                      </h6>
+                        <p className="text-muted mb-1">
+                          📞{" "}
+                          {address.phone ??
+                            address.phoneNumber ??
+                            address.phone_number ??
+                            ""}
+                        </p>
 
-                      <p className="text-muted mb-1">📞 {address.phone}</p>
+                        <p className="mb-3">
+                          {address.addressLine ??
+                            address.address_line ??
+                            address.streetAddress ??
+                            address.street_address ??
+                            ""}
+                          , {address.city ?? ""}, {address.state ?? ""} -{" "}
+                          {address.pincode ??
+                            address.pinCode ??
+                            address.pin_code ??
+                            ""}
+                        </p>
 
-                      <p className="mb-3">
-                        {address.addressLine}, {address.city}, {address.state}{" "}
-                        - {address.pincode}
-                      </p>
+                        <div className="d-flex flex-wrap gap-2">
+                          <button
+                            type="button"
+                            className="btn btn-outline-primary btn-sm"
+                            onClick={() => handleEdit(address)}
+                            disabled={saving || deletingId !== null}
+                          >
+                            Edit
+                          </button>
 
-                      <div className="d-flex flex-wrap gap-2">
-                        <button
-                          className="btn btn-outline-primary btn-sm"
-                          onClick={() => handleEdit(address)}
-                          disabled={saving || deletingId !== null}
-                        >
-                          Edit
-                        </button>
-
-                        <button
-                          className="btn btn-outline-danger btn-sm"
-                          onClick={() => handleDelete(address.id)}
-                          disabled={deletingId !== null || saving}
-                        >
-                          {deletingId === address.id
-                            ? "Deleting..."
-                            : "Delete"}
-                        </button>
+                          <button
+                            type="button"
+                            className="btn btn-outline-danger btn-sm"
+                            onClick={() => handleDelete(addressId)}
+                            disabled={
+                              addressId == null ||
+                              deletingId !== null ||
+                              saving
+                            }
+                          >
+                            {deletingId === addressId
+                              ? "Deleting..."
+                              : "Delete"}
+                          </button>
+                        </div>
                       </div>
                     </div>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             )}
           </div>

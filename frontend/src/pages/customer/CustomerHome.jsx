@@ -7,6 +7,27 @@ const DARK = "#351078";
 const LIGHT_PURPLE = "#f4edff";
 const API_URL = "https://foodxpress-fmpb.onrender.com";
 
+const heroFoods = [
+  {
+    name: "Chicken Biryani",
+    image:
+      "https://images.unsplash.com/photo-1631515243349-e0cb75fb8d3a?auto=format&fit=crop&w=900&q=90",
+    alt: "Fresh chicken biryani",
+  },
+  {
+    name: "Pizza",
+    image:
+      "https://images.unsplash.com/photo-1513104890138-7c749659a591?auto=format&fit=crop&w=900&q=90",
+    alt: "Freshly baked pizza",
+  },
+  {
+    name: "Burger",
+    image:
+      "https://images.unsplash.com/photo-1568901346375-23c9450c58cd?auto=format&fit=crop&w=900&q=90",
+    alt: "Juicy cheeseburger",
+  },
+];
+
 const cuisineIcons = {
   Burgers: "🍔",
   Pizza: "🍕",
@@ -65,10 +86,32 @@ function CustomerHome() {
   const [authVersion, setAuthVersion] = useState(0);
   const [cartCount, setCartCount] = useState(0);
 
+  // Hero carousel state
+  const [heroSlide, setHeroSlide] = useState(0);
+
   const customerToken = sessionStorage.getItem("customerToken");
   const isLoggedIn = Boolean(customerToken);
   const customerName =
     sessionStorage.getItem("customerName") || "Food Lover";
+
+  // Automatically rotate hero images every 3 seconds.
+  useEffect(() => {
+    const interval = window.setInterval(() => {
+      setHeroSlide((current) => (current + 1) % heroFoods.length);
+    }, 3000);
+
+    return () => window.clearInterval(interval);
+  }, []);
+
+  const showPreviousHeroSlide = () => {
+    setHeroSlide(
+      (current) => (current - 1 + heroFoods.length) % heroFoods.length
+    );
+  };
+
+  const showNextHeroSlide = () => {
+    setHeroSlide((current) => (current + 1) % heroFoods.length);
+  };
 
   const refreshCartCount = useCallback(async () => {
     const token = sessionStorage.getItem("customerToken");
@@ -194,7 +237,6 @@ function CustomerHome() {
     loadHomePageData();
   }, []);
 
-  // Search filters restaurant name, cuisine and description.
   const visibleRestaurants = restaurants.filter((restaurant) => {
     const query = search.trim().toLowerCase();
 
@@ -351,7 +393,6 @@ function CustomerHome() {
         }}
       >
         <div className="container-fluid px-3 px-xl-4">
-          {/* BRAND */}
           <Link
             to="/customer/home"
             className="navbar-brand d-flex align-items-center gap-2 me-3"
@@ -400,7 +441,6 @@ function CustomerHome() {
             </div>
           </form>
 
-          {/* MOBILE MENU BUTTON */}
           <button
             className="navbar-toggler"
             type="button"
@@ -413,7 +453,6 @@ function CustomerHome() {
             <span className="navbar-toggler-icon" />
           </button>
 
-          {/* NAVIGATION LINKS */}
           <div className="collapse navbar-collapse" id="customerNavbar">
             <div className="navbar-nav ms-xl-auto me-xl-3 gap-xl-1">
               <a
@@ -476,7 +515,6 @@ function CustomerHome() {
               </button>
             </div>
 
-            {/* CUSTOMER ACCOUNT */}
             <div className="d-flex align-items-center gap-2 mt-3 mt-xl-0">
               {isLoggedIn ? (
                 <>
@@ -528,7 +566,7 @@ function CustomerHome() {
         </div>
       </nav>
 
-      {/* MOBILE SEARCH: shown below navbar on small screens */}
+      {/* MOBILE SEARCH */}
       <div
         className="d-xl-none px-3 py-2"
         style={{ backgroundColor: LIGHT_PURPLE }}
@@ -574,7 +612,7 @@ function CustomerHome() {
         id="home"
         style={{ backgroundColor: "#fff" }}
       >
-        {/* HERO BANNER */}
+        {/* HERO BANNER WITH FOOD IMAGE CAROUSEL */}
         <section
           className="rounded-4 overflow-hidden mb-4"
           style={{
@@ -582,10 +620,11 @@ function CustomerHome() {
             boxShadow: "0 4px 18px rgba(57,16,113,0.08)",
           }}
         >
-          <div className="row g-0 align-items-center">
-            <div className="col-12 col-md-6 col-xl-5 p-4 p-xl-4">
+          <div className="row g-0 align-items-stretch">
+            {/* LEFT TEXT */}
+            <div className="col-12 col-md-6 col-xl-5 p-4 p-xl-4 d-flex flex-column justify-content-center">
               <span
-                className="badge rounded-pill px-3 py-2 mb-3"
+                className="badge rounded-pill px-3 py-2 mb-3 align-self-start"
                 style={{ backgroundColor: "#e5d0ff", color: DARK }}
               >
                 🍴 Delicious Food, Delivered
@@ -610,6 +649,7 @@ function CustomerHome() {
               </p>
             </div>
 
+            {/* RIGHT FOOD CAROUSEL */}
             <div
               className="col-12 col-md-6 col-xl-7 d-flex justify-content-center align-items-center p-3"
               style={{
@@ -617,25 +657,108 @@ function CustomerHome() {
                 background: "linear-gradient(135deg, #ead5ff, #f9f3ff)",
               }}
             >
-              <div style={{ width: "100%", maxWidth: 450 }}>
-                <img
-                  src="https://images.unsplash.com/photo-1631515243349-e0cb75fb8d3a?auto=format&fit=crop&w=900&q=90"
-                  alt="Fresh chicken biryani"
-                  className="img-fluid rounded-4 shadow w-100"
-                  loading="eager"
-                  onError={(event) => {
-                    if (event.currentTarget.dataset.fallback !== "used") {
-                      event.currentTarget.dataset.fallback = "used";
-                      event.currentTarget.src =
-                        "https://images.unsplash.com/photo-1546833999-b9f581a1996d?auto=format&fit=crop&w=900&q=85";
-                    }
-                  }}
+              <div
+                className="position-relative"
+                style={{ width: "100%", maxWidth: 560 }}
+              >
+                {/* Food image */}
+                <div
+                  className="position-relative overflow-hidden rounded-4 shadow"
+                  style={{ height: 260, backgroundColor: "#e5d0ff" }}
+                >
+                  {heroFoods.map((food, index) => (
+                    <img
+                      key={food.name}
+                      src={food.image}
+                      alt={food.alt}
+                      className="position-absolute top-0 start-0 w-100 h-100"
+                      loading={index === 0 ? "eager" : "lazy"}
+                      onError={(event) => {
+                        event.currentTarget.style.opacity = "0";
+                      }}
+                      style={{
+                        objectFit: "cover",
+                        opacity: heroSlide === index ? 1 : 0,
+                        transition: "opacity 600ms ease-in-out",
+                      }}
+                    />
+                  ))}
+
+                  {/* Food name label */}
+                  <div
+                    className="position-absolute bottom-0 start-0 m-3 px-3 py-2 rounded-pill fw-bold"
+                    style={{
+                      background: "rgba(255,255,255,0.93)",
+                      color: DARK,
+                      boxShadow: "0 2px 10px rgba(0,0,0,0.12)",
+                    }}
+                    aria-live="polite"
+                  >
+                    {heroFoods[heroSlide].name}
+                  </div>
+                </div>
+
+                {/* Previous arrow */}
+                <button
+                  type="button"
+                  onClick={showPreviousHeroSlide}
+                  aria-label="Previous food image"
+                  className="btn rounded-circle position-absolute top-50 start-0 translate-middle-y ms-2 d-flex align-items-center justify-content-center"
                   style={{
-                    height: 260,
-                    objectFit: "cover",
-                    display: "block",
+                    width: 38,
+                    height: 38,
+                    backgroundColor: "rgba(255,255,255,0.95)",
+                    color: DARK,
+                    border: "1px solid #ead5ff",
+                    zIndex: 2,
+                    fontSize: 22,
+                    padding: 0,
                   }}
-                />
+                >
+                  ‹
+                </button>
+
+                {/* Next arrow */}
+                <button
+                  type="button"
+                  onClick={showNextHeroSlide}
+                  aria-label="Next food image"
+                  className="btn rounded-circle position-absolute top-50 end-0 translate-middle-y me-2 d-flex align-items-center justify-content-center"
+                  style={{
+                    width: 38,
+                    height: 38,
+                    backgroundColor: "rgba(255,255,255,0.95)",
+                    color: DARK,
+                    border: "1px solid #ead5ff",
+                    zIndex: 2,
+                    fontSize: 22,
+                    padding: 0,
+                  }}
+                >
+                  ›
+                </button>
+
+                {/* Carousel dots */}
+                <div className="d-flex justify-content-center align-items-center gap-2 mt-3">
+                  {heroFoods.map((food, index) => (
+                    <button
+                      key={food.name}
+                      type="button"
+                      onClick={() => setHeroSlide(index)}
+                      aria-label={`Show ${food.name}`}
+                      aria-current={heroSlide === index ? "true" : undefined}
+                      className="border-0 rounded-pill"
+                      style={{
+                        width: heroSlide === index ? 25 : 9,
+                        height: 9,
+                        padding: 0,
+                        backgroundColor:
+                          heroSlide === index ? PURPLE : "#cbb0e9",
+                        transition: "all 250ms ease",
+                      }}
+                    />
+                  ))}
+                </div>
               </div>
             </div>
           </div>

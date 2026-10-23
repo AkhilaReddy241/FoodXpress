@@ -256,7 +256,7 @@ function CustomerProfile() {
           role="button"
           onClick={() => navigate("/customer/home")}
         >
-          🍽️ Food Xpress
+           ♨  Food Xpress
         </span>
 
         <div className="d-flex gap-2">

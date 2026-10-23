@@ -1,5 +1,5 @@
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 
 const API_URL = "https://foodxpress-fmpb.onrender.com";
@@ -7,17 +7,6 @@ const API_URL = "https://foodxpress-fmpb.onrender.com";
 function CustomerRegister() {
   const location = useLocation();
   const navigate = useNavigate();
-
-  const requestedDestination = location.state?.from;
-
-  const redirectTo =
-    typeof requestedDestination === "string" &&
-    requestedDestination.startsWith("/customer/") &&
-    !["/customer/login", "/customer/register"].includes(
-      requestedDestination
-    )
-      ? requestedDestination
-      : "/customer/home";
 
   const [form, setForm] = useState({
     name: "",
@@ -29,6 +18,18 @@ function CustomerRegister() {
 
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+  const [success, setSuccess] = useState(false);
+
+  // Automatically navigate home after showing the success message.
+  useEffect(() => {
+    if (!success) return;
+
+    const timer = setTimeout(() => {
+      navigate("/customer/home", { replace: true });
+    }, 2000);
+
+    return () => clearTimeout(timer);
+  }, [success, navigate]);
 
   const handleChange = (e) => {
     const { name, value } = e.target;
@@ -71,23 +72,20 @@ function CustomerRegister() {
     try {
       setLoading(true);
 
-      const response = await fetch(
-        `${API_URL}/api/customers/register`,
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            Accept: "application/json",
-          },
-          body: JSON.stringify({
-            name: form.name.trim(),
-            email: form.email.trim(),
-            phone: form.phone.trim(),
-            password: form.password,
-            confirmPassword: form.confirmPassword,
-          }),
-        }
-      );
+      const response = await fetch(`${API_URL}/api/customers/register`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Accept: "application/json",
+        },
+        body: JSON.stringify({
+          name: form.name.trim(),
+          email: form.email.trim(),
+          phone: form.phone.trim(),
+          password: form.password,
+          confirmPassword: form.confirmPassword,
+        }),
+      });
 
       const responseText = await response.text();
       let data = {};
@@ -110,25 +108,26 @@ function CustomerRegister() {
         );
       }
 
-      // Registration must return a JWT token for automatic login.
-      if (!data.token) {
-        throw new Error(
-          "Your account may have been created, but the server did not return a login token. Please log in manually."
+      // Store the session if the backend returns a token.
+      if (data.token) {
+        sessionStorage.setItem("customerToken", data.token);
+        sessionStorage.setItem("customerLoggedIn", "true");
+        sessionStorage.setItem(
+          "customerName",
+          data.name || form.name.trim()
         );
+        sessionStorage.setItem(
+          "customerEmail",
+          data.email || form.email.trim()
+        );
+
+        if (data.id != null) {
+          sessionStorage.setItem("customerId", String(data.id));
+        }
       }
 
-      // Store the same session fields used for customer login.
-      sessionStorage.setItem("customerToken", data.token);
-      sessionStorage.setItem("customerLoggedIn", "true");
-      sessionStorage.setItem("customerName", data.name || form.name.trim());
-      sessionStorage.setItem("customerEmail", data.email || form.email.trim());
-
-      if (data.id != null) {
-        sessionStorage.setItem("customerId", String(data.id));
-      }
-
-      // Navigate after storing the token.
-      navigate(redirectTo, { replace: true });
+      // Show success first, then navigate home.
+      setSuccess(true);
     } catch (err) {
       console.error("Customer registration error:", err);
 
@@ -158,12 +157,9 @@ function CustomerRegister() {
     >
       <div
         className="row g-0 m-0 w-100 overflow-hidden shadow"
-        style={{
-          maxWidth: "900px",
-          borderRadius: "12px",
-        }}
+        style={{ maxWidth: "900px", borderRadius: "12px" }}
       >
-        {/* LEFT: VIOLET FOOD PANEL */}
+        {/* LEFT FOOD PANEL */}
         <div
           className="col-md-5 text-white position-relative overflow-hidden p-3 p-lg-4 d-flex flex-column"
           style={{
@@ -178,7 +174,7 @@ function CustomerRegister() {
             </h3>
 
             <p className="small mb-4" style={{ color: "#e4ccff" }}>
-              Good Food&nbsp; • &nbsp;Happy Mood
+              Good Food · Happy Mood
             </p>
 
             <h2
@@ -193,7 +189,6 @@ function CustomerRegister() {
             </p>
           </div>
 
-          {/* FOOD IMAGES */}
           <div
             className="position-relative mt-3 flex-shrink-0"
             style={{ height: "250px" }}
@@ -204,7 +199,7 @@ function CustomerRegister() {
               className="rounded-4 shadow"
               style={{
                 position: "absolute",
-                left: "0",
+                left: 0,
                 bottom: "35px",
                 width: "77%",
                 height: "175px",
@@ -219,8 +214,8 @@ function CustomerRegister() {
               className="rounded-4 shadow"
               style={{
                 position: "absolute",
-                right: "0",
-                bottom: "0",
+                right: 0,
+                bottom: 0,
                 width: "58%",
                 height: "125px",
                 objectFit: "cover",
@@ -231,8 +226,8 @@ function CustomerRegister() {
             <span
               className="position-absolute fw-bold"
               style={{
-                right: "0",
-                top: "0",
+                right: 0,
+                top: 0,
                 width: "75px",
                 fontSize: "16px",
                 lineHeight: 1.1,
@@ -249,15 +244,12 @@ function CustomerRegister() {
           </div>
         </div>
 
-        {/* RIGHT: REGISTRATION FORM */}
+        {/* RIGHT REGISTRATION FORM */}
         <div
           className="col-md-7 d-flex align-items-center justify-content-center p-0"
           style={{ background: "#ffffff" }}
         >
-          <div
-            className="w-100 p-3 p-lg-4"
-            style={{ maxWidth: "420px" }}
-          >
+          <div className="w-100 p-3 p-lg-4" style={{ maxWidth: "420px" }}>
             <div className="text-center mb-3">
               <h2
                 className="fw-bold mb-2"
@@ -275,6 +267,21 @@ function CustomerRegister() {
               </p>
             </div>
 
+            {success && (
+              <div
+                className="alert alert-success text-center py-3"
+                role="status"
+                aria-live="polite"
+              >
+                <div className="fw-bold">
+                  ✅ Registration Successful!
+                </div>
+                <div className="small mt-1">
+                  Welcome to Food Xpress! Redirecting to home...
+                </div>
+              </div>
+            )}
+
             {error && (
               <div className="alert alert-danger py-2 small" role="alert">
                 {error}
@@ -289,7 +296,6 @@ function CustomerRegister() {
                 >
                   ♙ Full Name
                 </label>
-
                 <input
                   id="registerName"
                   type="text"
@@ -302,7 +308,7 @@ function CustomerRegister() {
                   autoComplete="name"
                   maxLength={100}
                   required
-                  disabled={loading}
+                  disabled={loading || success}
                 />
               </div>
 
@@ -313,7 +319,6 @@ function CustomerRegister() {
                 >
                   ✉ Email Address
                 </label>
-
                 <input
                   id="registerEmail"
                   type="email"
@@ -326,7 +331,7 @@ function CustomerRegister() {
                   autoComplete="email"
                   maxLength={150}
                   required
-                  disabled={loading}
+                  disabled={loading || success}
                 />
               </div>
 
@@ -337,7 +342,6 @@ function CustomerRegister() {
                 >
                   ♧ Phone Number
                 </label>
-
                 <input
                   id="registerPhone"
                   type="tel"
@@ -355,7 +359,7 @@ function CustomerRegister() {
                   inputMode="numeric"
                   autoComplete="tel"
                   required
-                  disabled={loading}
+                  disabled={loading || success}
                 />
               </div>
 
@@ -366,7 +370,6 @@ function CustomerRegister() {
                 >
                   ♙ Password
                 </label>
-
                 <input
                   id="registerPassword"
                   type="password"
@@ -379,7 +382,7 @@ function CustomerRegister() {
                   autoComplete="new-password"
                   minLength={6}
                   required
-                  disabled={loading}
+                  disabled={loading || success}
                 />
               </div>
 
@@ -390,7 +393,6 @@ function CustomerRegister() {
                 >
                   ♙ Confirm Password
                 </label>
-
                 <input
                   id="confirmPassword"
                   type="password"
@@ -403,13 +405,13 @@ function CustomerRegister() {
                   autoComplete="new-password"
                   minLength={6}
                   required
-                  disabled={loading}
+                  disabled={loading || success}
                 />
               </div>
 
               <button
                 type="submit"
-                disabled={loading}
+                disabled={loading || success}
                 className="btn w-100 text-white fw-bold py-2"
                 style={{
                   background: "linear-gradient(90deg, #912cf0, #7028bc)",
@@ -418,7 +420,11 @@ function CustomerRegister() {
                   fontSize: "13px",
                 }}
               >
-                {loading ? "Creating Account..." : "Create Account →"}
+                {loading
+                  ? "Creating Account..."
+                  : success
+                    ? "Registration Successful ✓"
+                    : "Create Account →"}
               </button>
             </form>
 
@@ -426,7 +432,6 @@ function CustomerRegister() {
               Already have an account?{" "}
               <Link
                 to="/customer/login"
-                state={{ from: redirectTo }}
                 className="fw-bold text-decoration-none"
                 style={{ color: "#7028bc" }}
               >

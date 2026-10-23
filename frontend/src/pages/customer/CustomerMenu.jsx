@@ -6,6 +6,27 @@ const PURPLE = "#641bc2";
 const DARK = "#351078";
 const API = "https://foodxpress-fmpb.onrender.com";
 
+// Use a food-specific image for known items.
+// Other items continue to use their image URL from the database.
+const FOOD_IMAGES = {
+  dosa: "https://images.unsplash.com/photo-1668236543090-82eba5ee5976?auto=format&fit=crop&w=800&q=85",
+  idli: "https://images.unsplash.com/photo-1589301760014-d929f3979dbc?auto=format&fit=crop&w=800&q=85",
+};
+
+function getFoodImage(item) {
+  const name = (item?.name || "").toLowerCase();
+
+  if (name.includes("dosa")) return FOOD_IMAGES.dosa;
+  if (name.includes("idli")) return FOOD_IMAGES.idli;
+
+  return item?.imageUrl || item?.image || "";
+}
+
+function getCartItems(data) {
+  if (Array.isArray(data)) return data;
+  return data?.items || data?.cartItems || data?.cart?.items || [];
+}
+
 function getCartQuantity(data) {
   if (!data) return 0;
 
@@ -13,19 +34,27 @@ function getCartQuantity(data) {
     return data.totalQuantity;
   }
 
-  const items = Array.isArray(data)
-    ? data
-    : data.items || data.cartItems || data.cart?.items || [];
-
-  if (Array.isArray(items)) {
-    return items.reduce(
-      (total, item) =>
-        total + Number(item.quantity ?? item.count ?? 0),
-      0
-    );
+  if (typeof data.totalItems === "number") {
+    return data.totalItems;
   }
 
-  return 0;
+  return getCartItems(data).reduce(
+    (total, item) => total + Number(item.quantity ?? item.count ?? 0),
+    0
+  );
+}
+
+function getFoodId(cartItem) {
+  return (
+    cartItem.foodItemId ??
+    cartItem.foodItem?.id ??
+    cartItem.item?.id ??
+    cartItem.food?.id
+  );
+}
+
+function getCartItemId(cartItem) {
+  return cartItem.cartItemId ?? cartItem.id;
 }
 
 function CustomerMenu() {
@@ -40,14 +69,17 @@ function CustomerMenu() {
   const [foodType, setFoodType] = useState("ALL");
   const [message, setMessage] = useState("");
   const [cartCount, setCartCount] = useState(0);
-  const [addedQuantities, setAddedQuantities] = useState({});
-  const [addingItemId, setAddingItemId] = useState(null);
+  const [cartQuantities, setCartQuantities] = useState({});
+  const [cartItemIds, setCartItemIds] = useState({});
+  const [busyItemIds, setBusyItemIds] = useState([]);
 
   const refreshCartCount = useCallback(async () => {
     const token = sessionStorage.getItem("customerToken");
 
     if (!token) {
       setCartCount(0);
+      setCartQuantities({});
+      setCartItemIds({});
       return;
     }
 
@@ -61,41 +93,41 @@ function CustomerMenu() {
       if (!response.ok) return;
 
       const data = await response.json();
-      setCartCount(getCartQuantity(data));
+      const items = getCartItems(data);
+      const quantities = {};
+      const itemIds = {};
 
-      // Synchronize the per-food-item quantities with the cart.
-      const items = Array.isArray(data)
-        ? data
-        : data.items || data.cartItems || data.cart?.items || [];
+      items.forEach((cartItem) => {
+        const foodId = getFoodId(cartItem);
+        const cartItemId = getCartItemId(cartItem);
+        const quantity = Number(cartItem.quantity ?? cartItem.count ?? 0);
 
-      if (Array.isArray(items)) {
-        const quantities = {};
+        if (foodId != null && quantity > 0) {
+          quantities[String(foodId)] = quantity;
 
-        items.forEach((cartItem) => {
-          const foodId =
-            cartItem.foodItemId ??
-            cartItem.foodItem?.id ??
-            cartItem.item?.id ??
-            cartItem.food?.id;
-
-          const quantity = Number(
-            cartItem.quantity ?? cartItem.count ?? 0
-          );
-
-          if (foodId != null && quantity > 0) {
-            quantities[foodId] = quantity;
+          if (cartItemId != null) {
+            itemIds[String(foodId)] = cartItemId;
           }
-        });
+        }
+      });
 
-        setAddedQuantities(quantities);
-      }
+      setCartCount(getCartQuantity(data));
+      setCartQuantities(quantities);
+      setCartItemIds(itemIds);
     } catch (err) {
-      console.error("Unable to refresh cart count:", err);
+      console.error("Unable to refresh cart:", err);
     }
   }, []);
 
   useEffect(() => {
     refreshCartCount();
+
+    const handleCartUpdate = () => refreshCartCount();
+    window.addEventListener("cartUpdated", handleCartUpdate);
+
+    return () => {
+      window.removeEventListener("cartUpdated", handleCartUpdate);
+    };
   }, [refreshCartCount]);
 
   useEffect(() => {
@@ -138,8 +170,7 @@ function CustomerMenu() {
         if (err.name !== "AbortError") {
           console.error("Menu API error:", err);
           setError(
-            err.message ||
-              "Unable to load menu. Please check the backend."
+            err.message || "Unable to load menu. Please check the backend."
           );
         }
       } finally {
@@ -177,8 +208,19 @@ function CustomerMenu() {
     setFoodType((current) => (current === type ? "ALL" : type));
   };
 
+  const changeBusyState = (foodId, busy) => {
+    setBusyItemIds((current) =>
+      busy
+        ? current.includes(String(foodId))
+          ? current
+          : [...current, String(foodId)]
+        : current.filter((id) => id !== String(foodId))
+    );
+  };
+
   const addToCart = async (item) => {
     const token = sessionStorage.getItem("customerToken");
+    const foodId = String(item.id);
 
     if (!token) {
       navigate("/customer/login", {
@@ -187,7 +229,9 @@ function CustomerMenu() {
       return;
     }
 
-    setAddingItemId(item.id);
+    if (busyItemIds.includes(foodId)) return;
+
+    changeBusyState(foodId, true);
     setMessage("");
 
     try {
@@ -218,19 +262,88 @@ function CustomerMenu() {
         );
       }
 
-      // Increase this food item's quantity after a successful response.
-      setAddedQuantities((previous) => ({
-        ...previous,
-        [item.id]: (previous[item.id] || 0) + 1,
-      }));
-
       await refreshCartCount();
+      window.dispatchEvent(new Event("cartUpdated"));
       setMessage(`${item.name} added to your cart.`);
     } catch (err) {
       console.error("Add to cart error:", err);
       setMessage(err.message || "Unable to add food to cart.");
     } finally {
-      setAddingItemId(null);
+      changeBusyState(foodId, false);
+    }
+  };
+
+  const decreaseQuantity = async (item) => {
+    const token = sessionStorage.getItem("customerToken");
+    const foodId = String(item.id);
+    const quantity = Number(cartQuantities[foodId] || 0);
+    const cartItemId = cartItemIds[foodId];
+
+    if (!token) {
+      navigate("/customer/login", {
+        state: { from: window.location.pathname },
+      });
+      return;
+    }
+
+    if (quantity <= 0 || busyItemIds.includes(foodId)) return;
+
+    if (cartItemId == null) {
+      setMessage(
+        "Unable to identify this cart item. Please open your cart and try again."
+      );
+      await refreshCartCount();
+      return;
+    }
+
+    changeBusyState(foodId, true);
+    setMessage("");
+
+    try {
+      const isLastItem = quantity === 1;
+
+      const response = await fetch(
+        `${API}/api/cart/items/${cartItemId}`,
+        {
+          method: isLastItem ? "DELETE" : "PUT",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`,
+          },
+          ...(!isLastItem && {
+            body: JSON.stringify({ quantity: quantity - 1 }),
+          }),
+        }
+      );
+
+      if (response.status === 401) {
+        sessionStorage.removeItem("customerToken");
+        navigate("/customer/login", {
+          state: { from: window.location.pathname },
+        });
+        return;
+      }
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(
+          errorData.message || "Unable to update cart quantity."
+        );
+      }
+
+      await refreshCartCount();
+      window.dispatchEvent(new Event("cartUpdated"));
+
+      setMessage(
+        isLastItem
+          ? `${item.name} removed from your cart.`
+          : `${item.name} quantity decreased.`
+      );
+    } catch (err) {
+      console.error("Decrease quantity error:", err);
+      setMessage(err.message || "Unable to update cart quantity.");
+    } finally {
+      changeBusyState(foodId, false);
     }
   };
 
@@ -318,7 +431,7 @@ function CustomerMenu() {
                       ⭐ {Number(restaurant.rating ?? 0).toFixed(1)}
                     </span>
                     <span>
-                      🕒 {restaurant.deliveryTimeMinutes} mins
+                      🕒 {restaurant.deliveryTimeMinutes ?? "N/A"} mins
                     </span>
                     <span>
                       🚲{" "}
@@ -377,8 +490,7 @@ function CustomerMenu() {
                 className="btn rounded-3 px-3"
                 style={{
                   minHeight: 42,
-                  backgroundColor:
-                    foodType === "ALL" ? PURPLE : "#ffffff",
+                  backgroundColor: foodType === "ALL" ? PURPLE : "#ffffff",
                   color: foodType === "ALL" ? "#ffffff" : DARK,
                   border: `1px solid ${
                     foodType === "ALL" ? PURPLE : "#ced4da"
@@ -395,8 +507,7 @@ function CustomerMenu() {
                 className="btn rounded-3 px-3 d-inline-flex align-items-center justify-content-center gap-2"
                 style={{
                   minHeight: 42,
-                  backgroundColor:
-                    foodType === "VEG" ? "#198754" : "#ffffff",
+                  backgroundColor: foodType === "VEG" ? "#198754" : "#ffffff",
                   color: foodType === "VEG" ? "#ffffff" : "#198754",
                   border: `1px solid ${
                     foodType === "VEG" ? "#198754" : "#a8d5bc"
@@ -442,8 +553,7 @@ function CustomerMenu() {
                   minHeight: 42,
                   backgroundColor:
                     foodType === "NON_VEG" ? "#dc3545" : "#ffffff",
-                  color:
-                    foodType === "NON_VEG" ? "#ffffff" : "#dc3545",
+                  color: foodType === "NON_VEG" ? "#ffffff" : "#dc3545",
                   border: `1px solid ${
                     foodType === "NON_VEG" ? "#dc3545" : "#efb6bd"
                   }`,
@@ -540,96 +650,158 @@ function CustomerMenu() {
           <>
             {filteredItems.length > 0 ? (
               <div className="row g-4">
-                {filteredItems.map((item) => (
-                  <div
-                    className="col-12 col-sm-6 col-lg-4 col-xl-3"
-                    key={item.id}
-                  >
-                    <article className="card h-100 rounded-4 overflow-hidden border-0 shadow-sm">
-                      {item.imageUrl ? (
-                        <img
-                          src={item.imageUrl}
-                          alt={item.name}
-                          className="card-img-top"
-                          loading="lazy"
-                          style={{ height: 185, objectFit: "cover" }}
-                        />
-                      ) : (
-                        <div
-                          className="d-flex align-items-center justify-content-center"
-                          style={{
-                            height: 185,
-                            backgroundColor: "#f1e6ff",
-                            fontSize: 60,
-                          }}
-                          role="img"
-                          aria-label="Food image unavailable"
-                        >
-                          🍽️
-                        </div>
-                      )}
+                {filteredItems.map((item) => {
+                  const foodId = String(item.id);
+                  const quantity = Number(cartQuantities[foodId] || 0);
+                  const isBusy = busyItemIds.includes(foodId);
+                  const foodImage = getFoodImage(item);
 
-                      <div className="card-body p-3 d-flex flex-column">
-                        <span
-                          className="badge rounded-pill align-self-start mb-2"
-                          style={{
-                            backgroundColor: "#f0e4ff",
-                            color: DARK,
-                          }}
-                        >
-                          {item.category}
-                        </span>
-
-                        {typeof item.vegetarian === "boolean" && (
-                          <span
-                            className={`badge rounded-pill align-self-start mb-2 ${
-                              item.vegetarian ? "bg-success" : "bg-danger"
-                            }`}
+                  return (
+                    <div
+                      className="col-12 col-sm-6 col-lg-4 col-xl-3"
+                      key={item.id}
+                    >
+                      <article className="card h-100 rounded-4 overflow-hidden border-0 shadow-sm">
+                        {foodImage ? (
+                          <img
+                            src={foodImage}
+                            alt={item.name}
+                            className="card-img-top"
+                            loading="lazy"
+                            onError={(event) => {
+                              event.currentTarget.onerror = null;
+                              event.currentTarget.style.display = "none";
+                            }}
+                            style={{
+                              height: 185,
+                              width: "100%",
+                              objectFit: "cover",
+                            }}
+                          />
+                        ) : (
+                          <div
+                            className="d-flex align-items-center justify-content-center"
+                            style={{
+                              height: 185,
+                              backgroundColor: "#f1e6ff",
+                              fontSize: 60,
+                            }}
+                            role="img"
+                            aria-label="Food image unavailable"
                           >
-                            {item.vegetarian ? "🟢 Veg" : "🔴 Non-Veg"}
-                          </span>
+                            🍽️
+                          </div>
                         )}
 
-                        <h5 className="fw-bold mb-2" style={{ color: DARK }}>
-                          {item.name}
-                        </h5>
-
-                        <p className="text-secondary small">
-                          {item.description ||
-                            "Delicious food, freshly prepared."}
-                        </p>
-
-                        <div className="d-flex justify-content-between align-items-center mt-auto gap-2">
+                        <div className="card-body p-3 d-flex flex-column">
                           <span
-                            className="fw-bold fs-5"
-                            style={{ color: PURPLE }}
+                            className="badge rounded-pill align-self-start mb-2"
+                            style={{
+                              backgroundColor: "#f0e4ff",
+                              color: DARK,
+                            }}
                           >
-                            ₹{Number(item.price).toFixed(2)}
+                            {item.category}
                           </span>
 
-                          <button
-                            type="button"
-                            className="btn btn-sm text-white rounded-pill px-3"
-                            style={{
-                              backgroundColor: addedQuantities[item.id]
-                                ? "#198754"
-                                : PURPLE,
-                              whiteSpace: "nowrap",
-                            }}
-                            disabled={addingItemId === item.id}
-                            onClick={() => addToCart(item)}
-                          >
-                            {addingItemId === item.id
-                              ? "Adding..."
-                              : addedQuantities[item.id]
-                                ? `Added · ${addedQuantities[item.id]}`
-                                : "+ Add"}
-                          </button>
+                          {typeof item.vegetarian === "boolean" && (
+                            <span
+                              className={`badge rounded-pill align-self-start mb-2 ${
+                                item.vegetarian ? "bg-success" : "bg-danger"
+                              }`}
+                            >
+                              {item.vegetarian ? "🟢 Veg" : "🔴 Non-Veg"}
+                            </span>
+                          )}
+
+                          <h5 className="fw-bold mb-2" style={{ color: DARK }}>
+                            {item.name}
+                          </h5>
+
+                          <p className="text-secondary small">
+                            {item.description ||
+                              "Delicious food, freshly prepared."}
+                          </p>
+
+                          <div className="d-flex justify-content-between align-items-center mt-auto gap-2">
+                            <span
+                              className="fw-bold fs-5"
+                              style={{ color: PURPLE }}
+                            >
+                              ₹{Number(item.price).toFixed(2)}
+                            </span>
+
+                            {quantity === 0 ? (
+                              <button
+                                type="button"
+                                className="btn btn-sm text-white rounded-pill px-3"
+                                style={{ backgroundColor: PURPLE }}
+                                disabled={isBusy}
+                                onClick={() => addToCart(item)}
+                              >
+                                {isBusy ? "Adding..." : "+ Add"}
+                              </button>
+                            ) : (
+                              <div
+                                className="d-inline-flex align-items-center rounded-pill overflow-hidden"
+                                style={{
+                                  border: `1px solid ${PURPLE}`,
+                                  minHeight: 36,
+                                }}
+                              >
+                                <button
+                                  type="button"
+                                  aria-label={`Decrease ${item.name} quantity`}
+                                  className="btn btn-sm rounded-0 fw-bold"
+                                  style={{
+                                    color: PURPLE,
+                                    backgroundColor: "#f0e4ff",
+                                    width: 36,
+                                    height: 36,
+                                    fontSize: 20,
+                                    lineHeight: 1,
+                                  }}
+                                  disabled={isBusy}
+                                  onClick={() => decreaseQuantity(item)}
+                                >
+                                  −
+                                </button>
+
+                                <span
+                                  className="fw-bold text-center px-2"
+                                  aria-live="polite"
+                                  style={{
+                                    color: DARK,
+                                    minWidth: 34,
+                                  }}
+                                >
+                                  {isBusy ? "…" : quantity}
+                                </span>
+
+                                <button
+                                  type="button"
+                                  aria-label={`Increase ${item.name} quantity`}
+                                  className="btn btn-sm rounded-0 fw-bold text-white"
+                                  style={{
+                                    backgroundColor: PURPLE,
+                                    width: 36,
+                                    height: 36,
+                                    fontSize: 20,
+                                    lineHeight: 1,
+                                  }}
+                                  disabled={isBusy}
+                                  onClick={() => addToCart(item)}
+                                >
+                                  +
+                                </button>
+                              </div>
+                            )}
+                          </div>
                         </div>
-                      </div>
-                    </article>
-                  </div>
-                ))}
+                      </article>
+                    </div>
+                  );
+                })}
               </div>
             ) : (
               <div className="text-center bg-white rounded-4 p-5 shadow-sm">

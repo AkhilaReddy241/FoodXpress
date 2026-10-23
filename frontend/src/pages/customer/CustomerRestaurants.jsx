@@ -244,7 +244,7 @@ function CustomerRestaurants() {
             className="navbar-brand fw-bold"
             style={{ fontSize: 23 }}
           >
-            🍽️ Food{" "}
+             ♨  Food{" "}
             <span style={{ color: "#d9a2ff" }}>Xpress</span>
           </Link>
 
