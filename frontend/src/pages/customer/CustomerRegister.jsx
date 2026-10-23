@@ -1,11 +1,10 @@
 
 import { useEffect, useState } from "react";
-import { Link, useLocation, useNavigate } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 
 const API_URL = "https://foodxpress-fmpb.onrender.com";
 
 function CustomerRegister() {
-  const location = useLocation();
   const navigate = useNavigate();
 
   const [form, setForm] = useState({
@@ -30,8 +29,8 @@ function CustomerRegister() {
     return () => clearTimeout(timer);
   }, [success, navigate]);
 
-  const handleChange = (e) => {
-    const { name, value } = e.target;
+  const handleChange = (event) => {
+    const { name, value } = event.target;
 
     setForm((previous) => ({
       ...previous,
@@ -39,8 +38,8 @@ function CustomerRegister() {
     }));
   };
 
-  const handleSubmit = async (e) => {
-    e.preventDefault();
+  const handleSubmit = async (event) => {
+    event.preventDefault();
     setError("");
 
     if (Object.values(form).some((value) => !value.trim())) {
@@ -48,12 +47,16 @@ function CustomerRegister() {
       return;
     }
 
-    if (!/^\S+@\S+\.\S+$/.test(form.email.trim())) {
+    const name = form.name.trim();
+    const email = form.email.trim().toLowerCase();
+    const phone = form.phone.trim();
+
+    if (!/^\S+@\S+\.\S+$/.test(email)) {
       setError("Please enter a valid email address.");
       return;
     }
 
-    if (!/^\d{10}$/.test(form.phone.trim())) {
+    if (!/^\d{10}$/.test(phone)) {
       setError("Enter a valid 10-digit phone number.");
       return;
     }
@@ -68,9 +71,9 @@ function CustomerRegister() {
       return;
     }
 
-    try {
-      setLoading(true);
+    setLoading(true);
 
+    try {
       const response = await fetch(`${API_URL}/api/customers/register`, {
         method: "POST",
         headers: {
@@ -78,9 +81,9 @@ function CustomerRegister() {
           Accept: "application/json",
         },
         body: JSON.stringify({
-          name: form.name.trim(),
-          email: form.email.trim(),
-          phone: form.phone.trim(),
+          name,
+          email,
+          phone,
           password: form.password,
           confirmPassword: form.confirmPassword,
         }),
@@ -89,56 +92,59 @@ function CustomerRegister() {
       const responseText = await response.text();
       let data = {};
 
-      try {
-        data = responseText ? JSON.parse(responseText) : {};
-      } catch {
-        data = { detail: responseText };
+      if (responseText) {
+        try {
+          data = JSON.parse(responseText);
+        } catch {
+          data = { message: responseText };
+        }
       }
 
+      const backendMessage = String(
+        data.detail || data.message || data.error || ""
+      );
+
+      const normalizedMessage = backendMessage.toLowerCase();
+
+      // Handle duplicate email responses.
+      if (
+        response.status === 409 ||
+        normalizedMessage.includes("already registered") ||
+        normalizedMessage.includes("already exists")
+      ) {
+        setError("Email already exists. Please log in.");
+        return;
+      }
+
+      // Do not show success unless the server confirms success.
       if (!response.ok) {
-        const serverMessage = String(
-          data.detail || data.message || data.error || ""
-        );
-
-        const duplicateEmail =
-          response.status === 409 ||
-          /email.*(already|exist|registered|taken|duplicate)|(?:already|exist|registered|taken|duplicate).*email/i.test(
-            serverMessage
-          ) ||
-          /duplicate entry/i.test(serverMessage);
-
-        if (duplicateEmail) {
-          throw new Error(
-            "This email is already registered. Please login or use another email address."
-          );
-        }
-
         if (response.status === 400) {
-          throw new Error(
-            serverMessage || "Please check your registration details."
+          setError(
+            backendMessage || "Please check your registration details."
           );
+          return;
         }
 
         throw new Error(
-          serverMessage || "Registration failed. Please try again."
+          backendMessage ||
+            `Registration failed (HTTP ${response.status}). Please try again.`
         );
       }
 
-      if (data.token) {
-        sessionStorage.setItem("customerToken", data.token);
-        sessionStorage.setItem("customerLoggedIn", "true");
-        sessionStorage.setItem(
-          "customerName",
-          data.name || form.name.trim()
+      // A successful response should include the customer details and token.
+      if (!data.token) {
+        throw new Error(
+          "The server accepted the registration but did not return a login token. Please check the backend response."
         );
-        sessionStorage.setItem(
-          "customerEmail",
-          data.email || form.email.trim()
-        );
+      }
 
-        if (data.id != null) {
-          sessionStorage.setItem("customerId", String(data.id));
-        }
+      sessionStorage.setItem("customerToken", data.token);
+      sessionStorage.setItem("customerLoggedIn", "true");
+      sessionStorage.setItem("customerName", data.name || name);
+      sessionStorage.setItem("customerEmail", data.email || email);
+
+      if (data.id != null) {
+        sessionStorage.setItem("customerId", String(data.id));
       }
 
       setSuccess(true);
@@ -147,10 +153,10 @@ function CustomerRegister() {
 
       if (err instanceof TypeError) {
         setError(
-          "Cannot connect to the backend. Check your internet connection and backend deployment."
+          "Cannot connect to the backend. Please check your internet connection and backend deployment."
         );
       } else {
-        setError(err.message || "Something went wrong.");
+        setError(err.message || "Something went wrong. Please try again.");
       }
     } finally {
       setLoading(false);
@@ -295,17 +301,6 @@ function CustomerRegister() {
             {error && (
               <div className="alert alert-danger py-2 small" role="alert">
                 {error}
-                {error.toLowerCase().includes("email is already registered") && (
-                  <div className="mt-2">
-                    <Link
-                      to="/customer/login"
-                      className="fw-bold text-decoration-underline"
-                      style={{ color: "#842029" }}
-                    >
-                      Go to Login
-                    </Link>
-                  </div>
-                )}
               </div>
             )}
 
@@ -371,9 +366,9 @@ function CustomerRegister() {
                   style={inputStyle}
                   placeholder="10-digit phone number"
                   value={form.phone}
-                  onChange={(e) => {
-                    if (/^\d{0,10}$/.test(e.target.value)) {
-                      handleChange(e);
+                  onChange={(event) => {
+                    if (/^\d{0,10}$/.test(event.target.value)) {
+                      handleChange(event);
                     }
                   }}
                   maxLength={10}
