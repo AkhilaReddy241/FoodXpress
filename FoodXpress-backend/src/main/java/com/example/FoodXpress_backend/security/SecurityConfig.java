@@ -34,7 +34,8 @@ public class SecurityConfig {
                 List.of("https://food-xpress-rust.vercel.app"));
 
         configuration.setAllowedMethods(
-                List.of("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"));
+                List.of("GET", "POST", "PUT", "PATCH",
+                        "DELETE", "OPTIONS"));
 
         configuration.setAllowedHeaders(
                 List.of("Authorization", "Content-Type", "Accept"));
@@ -59,7 +60,8 @@ public class SecurityConfig {
             .formLogin(form -> form.disable())
             .httpBasic(basic -> basic.disable())
             .sessionManagement(session ->
-                session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
+                session.sessionCreationPolicy(
+                    SessionCreationPolicy.STATELESS))
             .authorizeHttpRequests(auth -> auth
                 .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
                 .requestMatchers(
@@ -84,5 +86,5 @@ public class SecurityConfig {
                 UsernamePasswordAuthenticationFilter.class);
 
         return http.build();
-
-                }    }
+    }
+}

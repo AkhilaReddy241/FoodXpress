@@ -44,13 +44,9 @@ public class CartController {
             Authentication authentication) {
 
         CartResponse cart = cartService.addItem(
-                getCustomerId(authentication),
-                request
-        );
+                getCustomerId(authentication), request);
 
-        return ResponseEntity
-                .status(HttpStatus.CREATED)
-                .body(cart);
+        return ResponseEntity.status(HttpStatus.CREATED).body(cart);
     }
 
     @PutMapping("/items/{cartItemId}")
@@ -60,10 +56,7 @@ public class CartController {
             Authentication authentication) {
 
         return cartService.updateItem(
-                getCustomerId(authentication),
-                cartItemId,
-                request
-        );
+                getCustomerId(authentication), cartItemId, request);
     }
 
     @DeleteMapping("/items/{cartItemId}")
@@ -72,9 +65,7 @@ public class CartController {
             Authentication authentication) {
 
         return cartService.removeItem(
-                getCustomerId(authentication),
-                cartItemId
-        );
+                getCustomerId(authentication), cartItemId);
     }
 
     @DeleteMapping
@@ -88,9 +79,7 @@ public class CartController {
             Authentication authentication) {
 
         return cartService.applyCoupon(
-                getCustomerId(authentication),
-                request
-        );
+                getCustomerId(authentication), request);
     }
 
     private Long getCustomerId(Authentication authentication) {
@@ -102,7 +91,6 @@ public class CartController {
 
         throw new ResponseStatusException(
                 HttpStatus.UNAUTHORIZED,
-                "Please log in before accessing your cart."
-        );
+                "Please log in before accessing your cart.");
     }
 }
