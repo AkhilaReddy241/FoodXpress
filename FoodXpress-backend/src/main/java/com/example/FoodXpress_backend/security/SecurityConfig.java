@@ -30,12 +30,11 @@ public class SecurityConfig {
     public CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration configuration = new CorsConfiguration();
 
-        configuration.setAllowedOrigins(List.of(
-                "https://food-xpress-rust.vercel.app",
-                "https://food-xpress-2e93gm43y-akhilareddy241.vercel.app",
-                "http://localhost:5173"
-        ));
-
+       configuration.setAllowedOrigins(List.of(
+        "https://food-xpress-rust.vercel.app",
+        "https://food-xpress-2e93gm43y-akhilareddy241.vercel.app",
+        "http://localhost:5173"
+));
         configuration.setAllowedMethods(List.of(
                 "GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"
         ));
