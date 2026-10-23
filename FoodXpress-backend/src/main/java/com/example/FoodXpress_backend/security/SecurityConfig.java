@@ -30,15 +30,19 @@ public class SecurityConfig {
     public CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration configuration = new CorsConfiguration();
 
-        configuration.setAllowedOrigins(
-                List.of("https://food-xpress-rust.vercel.app"));
+        configuration.setAllowedOrigins(List.of(
+                "https://food-xpress-rust.vercel.app",
+                "https://food-xpress-2e93gm43y-akhilareddy241.vercel.app",
+                "http://localhost:5173"
+        ));
 
-        configuration.setAllowedMethods(
-                List.of("GET", "POST", "PUT", "PATCH",
-                        "DELETE", "OPTIONS"));
+        configuration.setAllowedMethods(List.of(
+                "GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"
+        ));
 
-        configuration.setAllowedHeaders(
-                List.of("Authorization", "Content-Type", "Accept"));
+        configuration.setAllowedHeaders(List.of(
+                "Authorization", "Content-Type", "Accept"
+        ));
 
         configuration.setAllowCredentials(false);
 
@@ -69,7 +73,9 @@ public class SecurityConfig {
                 .requestMatchers(
                     HttpMethod.POST,
                     "/api/customers/register",
+                    "/api/customers/register/",
                     "/api/customers/login",
+                    "/api/customers/login/",
                     "/api/customers/forgot-password",
                     "/api/customers/verify-reset-otp",
                     "/api/customers/reset-password"
