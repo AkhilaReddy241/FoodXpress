@@ -1,8 +1,9 @@
-
 import { useEffect, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 
-const API_URL = "https://foodxpress-fmpb.onrender.com";
+const API_URL = import.meta.env.DEV
+  ? "http://localhost:8080"
+  : "https://foodxpress-fmpb.onrender.com";
 
 function CustomerRegister() {
   const navigate = useNavigate();
@@ -172,9 +173,108 @@ function CustomerRegister() {
 
   return (
     <div
-      className="container-fluid min-vh-100 d-flex align-items-center justify-content-center p-3"
+      className="customer-register-responsive container-fluid min-vh-100 d-flex align-items-center justify-content-center p-3"
       style={{ background: "#faf7ff" }}
     >
+      <style>{`
+        .customer-register-responsive {
+          width: 100%;
+          min-width: 0;
+          overflow-x: hidden;
+        }
+
+        .customer-register-responsive > .row {
+          width: 100%;
+          min-width: 0;
+        }
+
+        .customer-register-responsive > .row > div {
+          min-width: 0;
+        }
+
+        .customer-register-responsive input {
+          max-width: 100%;
+          min-width: 0;
+        }
+
+        @media (max-width: 767.98px) {
+          .customer-register-responsive {
+            align-items: flex-start !important;
+            padding-top: 20px !important;
+            padding-bottom: 20px !important;
+          }
+
+          .customer-register-responsive > .row > div:first-child {
+            min-height: auto !important;
+          }
+
+          .customer-register-responsive > .row > div:first-child > div:first-child {
+            min-height: auto;
+          }
+
+          .customer-register-responsive > .row > div:first-child > div:last-child {
+            height: 210px !important;
+          }
+
+          .customer-register-responsive > .row > div:last-child {
+            padding: 0;
+          }
+        }
+
+        @media (max-width: 575.98px) {
+          .customer-register-responsive {
+            padding-left: 12px !important;
+            padding-right: 12px !important;
+          }
+
+          .customer-register-responsive > .row {
+            border-radius: 12px;
+          }
+
+          .customer-register-responsive > .row > div:first-child {
+            padding: 20px !important;
+          }
+
+          .customer-register-responsive > .row > div:first-child h2 {
+            font-size: 23px !important;
+          }
+
+          .customer-register-responsive > .row > div:first-child > div:last-child {
+            height: 190px !important;
+          }
+
+          .customer-register-responsive > .row > div:first-child > div:last-child img:first-child {
+            height: 140px !important;
+          }
+
+          .customer-register-responsive > .row > div:first-child > div:last-child img:nth-child(2) {
+            height: 100px !important;
+          }
+
+          .customer-register-responsive > .row > div:last-child > div {
+            padding: 20px !important;
+          }
+
+          .customer-register-responsive > .row > div:last-child h2 {
+            font-size: 23px !important;
+          }
+        }
+
+        @media (max-width: 360px) {
+          .customer-register-responsive > .row > div:first-child {
+            padding: 15px !important;
+          }
+
+          .customer-register-responsive > .row > div:first-child h2 {
+            font-size: 21px !important;
+          }
+
+          .customer-register-responsive > .row > div:last-child > div {
+            padding: 15px !important;
+          }
+        }
+      `}</style>
+
       <div
         className="row g-0 m-0 w-100 overflow-hidden shadow"
         style={{ maxWidth: "900px", borderRadius: "12px" }}

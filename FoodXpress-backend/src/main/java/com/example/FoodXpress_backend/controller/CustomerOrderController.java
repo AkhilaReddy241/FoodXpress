@@ -3,6 +3,8 @@ package com.example.FoodXpress_backend.controller;
 
 import com.example.FoodXpress_backend.dto.CustomerOrderResponse;
 import com.example.FoodXpress_backend.dto.PlaceOrderRequest;
+import com.example.FoodXpress_backend.dto.RazorpayOrderResponse;
+import com.example.FoodXpress_backend.dto.VerifyRazorpayPaymentRequest;
 import com.example.FoodXpress_backend.service.CustomerOrderService;
 
 import jakarta.validation.Valid;
@@ -59,17 +61,51 @@ public class CustomerOrderController {
         );
     }
 
+    @PostMapping("/{orderId}/razorpay-order")
+    public RazorpayOrderResponse createRazorpayOrder(
+            @PathVariable Long orderId,
+            Authentication authentication) {
+
+        return orderService.createRazorpayOrder(
+            getCustomerId(authentication), orderId
+        );
+    }
+
+    @PostMapping("/{orderId}/verify-payment")
+    public CustomerOrderResponse verifyRazorpayPayment(
+            @PathVariable Long orderId,
+            @Valid @RequestBody VerifyRazorpayPaymentRequest request,
+            Authentication authentication) {
+
+        return orderService.verifyRazorpayPayment(
+            getCustomerId(authentication), orderId, request
+        );
+    }
+
+    @PostMapping("/{orderId}/cancel")
+    public CustomerOrderResponse cancelOrder(
+            @PathVariable Long orderId,
+            @RequestParam(required = false) String reason,
+            Authentication authentication) {
+
+        return orderService.cancelOrder(
+            getCustomerId(authentication), orderId, reason
+        );
+    }
+
     @PostMapping("/{orderId}/pay")
     public CustomerOrderResponse payOrder(
             @PathVariable Long orderId,
             Authentication authentication) {
 
-        return orderService.markAsPaid(
-            getCustomerId(authentication), orderId
+        throw new ResponseStatusException(
+            HttpStatus.BAD_REQUEST,
+            "Use the Razorpay checkout and payment verification endpoints."
         );
     }
 
     private Long getCustomerId(Authentication authentication) {
+
         if (authentication != null
                 && authentication.isAuthenticated()
                 && authentication.getPrincipal() instanceof Number number) {

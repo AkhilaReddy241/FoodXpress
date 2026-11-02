@@ -1,8 +1,9 @@
-
 import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 
-const API_URL = "https://foodxpress-fmpb.onrender.com";
+const API_URL = import.meta.env.DEV
+  ? "http://localhost:8080"
+  : "https://foodxpress-fmpb.onrender.com";
 
 function CustomerForgotPassword() {
   const navigate = useNavigate();
@@ -152,12 +153,64 @@ function CustomerForgotPassword() {
 
   return (
     <div
-      className="container-fluid min-vh-100 d-flex align-items-center justify-content-center p-3"
+      className="customer-forgot-password-page container-fluid min-vh-100 d-flex align-items-center justify-content-center p-3"
       style={{ background: "#faf7ff" }}
     >
+      <style>{`
+        .customer-forgot-password-page {
+          width: 100%;
+          min-width: 0;
+          overflow-x: hidden;
+        }
+
+        .customer-forgot-password-card {
+          width: 100%;
+          min-width: 0;
+          max-width: 460px;
+        }
+
+        .customer-forgot-password-card input {
+          width: 100%;
+          min-width: 0;
+          box-sizing: border-box;
+        }
+
+        .customer-forgot-password-card button {
+          max-width: 100%;
+        }
+
+        @media (max-width: 575.98px) {
+          .customer-forgot-password-page {
+            padding: 14px !important;
+          }
+
+          .customer-forgot-password-card {
+            padding: 22px !important;
+          }
+
+          .customer-forgot-password-card h2 {
+            font-size: 1.65rem;
+          }
+
+          .customer-forgot-password-card h4 {
+            font-size: 1.25rem;
+          }
+        }
+
+        @media (max-width: 360px) {
+          .customer-forgot-password-card {
+            padding: 18px !important;
+          }
+
+          .customer-forgot-password-card .gap-2 {
+            gap: 6px !important;
+          }
+        }
+      `}</style>
+
       <div
-        className="card border-0 shadow p-4 p-md-5 w-100"
-        style={{ maxWidth: "460px", borderRadius: "16px" }}
+        className="customer-forgot-password-card card border-0 shadow p-4 p-md-5"
+        style={{ borderRadius: "16px" }}
       >
         <div className="text-center mb-4">
           <h2 className="fw-bold" style={{ color: "#7028bc" }}>
@@ -228,7 +281,7 @@ function CustomerForgotPassword() {
 
         {step === 2 && (
           <form onSubmit={handleVerifyOtp}>
-            <p className="small text-secondary">
+            <p className="small text-secondary text-break">
               Email: <strong>{email}</strong>
             </p>
             <label className="form-label small fw-semibold">6-digit OTP</label>

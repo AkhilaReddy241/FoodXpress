@@ -5,7 +5,10 @@ import { Link, useNavigate } from "react-router-dom";
 const PURPLE = "#641bc2";
 const DARK = "#351078";
 const LIGHT_PURPLE = "#f4edff";
-const API_URL = "https://foodxpress-fmpb.onrender.com";
+
+const API_URL = import.meta.env.DEV
+  ? "http://localhost:8080"
+  : "https://foodxpress-fmpb.onrender.com";
 
 const heroFoods = [
   {
@@ -93,6 +96,7 @@ function CustomerHome() {
   const isLoggedIn = Boolean(customerToken);
   const customerName =
     sessionStorage.getItem("customerName") || "Food Lover";
+  const customerEmail = sessionStorage.getItem("customerEmail") || "";
 
   // Automatically rotate hero images every 3 seconds.
   useEffect(() => {
@@ -111,6 +115,15 @@ function CustomerHome() {
 
   const showNextHeroSlide = () => {
     setHeroSlide((current) => (current + 1) % heroFoods.length);
+  };
+
+  // Shared search submit handler for desktop and mobile.
+  const handleSearchSubmit = (event) => {
+    event.preventDefault();
+
+    document
+      .getElementById("restaurants")
+      ?.scrollIntoView({ behavior: "smooth" });
   };
 
   const refreshCartCount = useCallback(async () => {
@@ -174,7 +187,7 @@ function CustomerHome() {
   const formatRestaurants = (data) =>
     data.map((restaurant) => ({
       id: restaurant.id,
-      name: restaurant.name,
+      name: restaurant.name || "",
       cuisine: restaurant.cuisine || "",
       description:
         restaurant.description || restaurant.cuisine || "",
@@ -237,6 +250,7 @@ function CustomerHome() {
     loadHomePageData();
   }, []);
 
+  // Search restaurants safely by name, cuisine, or description.
   const visibleRestaurants = restaurants.filter((restaurant) => {
     const query = search.trim().toLowerCase();
 
@@ -245,9 +259,14 @@ function CustomerHome() {
       restaurant.cuisine === selectedCuisine;
 
     const matchesSearch =
-      restaurant.name.toLowerCase().includes(query) ||
-      restaurant.cuisine.toLowerCase().includes(query) ||
-      restaurant.description.toLowerCase().includes(query);
+      !query ||
+      [
+        restaurant.name,
+        restaurant.cuisine,
+        restaurant.description,
+      ].some((value) =>
+        String(value ?? "").toLowerCase().includes(query)
+      );
 
     return matchesCuisine && matchesSearch;
   });
@@ -383,8 +402,31 @@ function CustomerHome() {
   return (
     <div
       className="container-fluid p-0"
-      style={{ minHeight: "100vh", backgroundColor: "#fff" }}
+      style={{
+        minHeight: "100vh",
+        backgroundColor: "#fff",
+        overflowX: "hidden",
+      }}
     >
+      {/* Responsive styles - desktop design is preserved */}
+      <style>{`
+        @media (max-width: 575.98px) {
+          .customer-home-hero-image-box {
+            height: 220px !important;
+          }
+        }
+
+        @media (min-width: 576px) and (max-width: 767.98px) {
+          .customer-home-hero-image-box {
+            height: 240px !important;
+          }
+        }
+
+        .customer-home-search-input {
+          min-width: 0;
+        }
+      `}</style>
+
       {/* NAVBAR */}
       <nav
         className="navbar navbar-expand-xl navbar-dark sticky-top py-2"
@@ -402,16 +444,11 @@ function CustomerHome() {
             </span>
           </Link>
 
-          {/* SEARCH BESIDE BRAND */}
+          {/* SEARCH BESIDE BRAND - LAPTOP / DESKTOP */}
           <form
-            className="d-flex flex-grow-1 me-3"
+            className="d-none d-xl-flex flex-grow-1 me-3"
             style={{ maxWidth: 420, minWidth: 120 }}
-            onSubmit={(event) => {
-              event.preventDefault();
-              document
-                .getElementById("restaurants")
-                ?.scrollIntoView({ behavior: "smooth" });
-            }}
+            onSubmit={handleSearchSubmit}
           >
             <div className="input-group rounded-pill overflow-hidden bg-white">
               <span className="input-group-text bg-white border-0 ps-3">
@@ -420,12 +457,11 @@ function CustomerHome() {
 
               <input
                 type="search"
-                className="form-control border-0 shadow-none"
+                className="form-control border-0 shadow-none customer-home-search-input"
                 placeholder="Search food or restaurants..."
                 value={search}
                 onChange={(event) => setSearch(event.target.value)}
                 aria-label="Search food or restaurants"
-                style={{ minWidth: 0 }}
               />
 
               {search && (
@@ -515,32 +551,128 @@ function CustomerHome() {
               </button>
             </div>
 
-            <div className="d-flex align-items-center gap-2 mt-3 mt-xl-0">
+            <div className="d-flex align-items-center gap-2 gap-xl-3 mt-3 mt-xl-0">
+              {/* CUSTOMER NOTIFICATIONS */}
+              <details className="position-relative">
+                <summary
+                  className="d-flex align-items-center justify-content-center rounded-circle"
+                  aria-label="Open notifications"
+                  title="Notifications"
+                  style={{
+                    listStyle: "none",
+                    cursor: "pointer",
+                    width: 40,
+                    height: 40,
+                    background: "rgba(255,255,255,0.14)",
+                    border: "1px solid rgba(255,255,255,0.35)",
+                    color: "#fff",
+                    fontSize: 20,
+                  }}
+                >
+                  🔔
+                </summary>
+
+                <div
+                  className="position-absolute bg-white shadow rounded-3 p-3"
+                  style={{
+                    top: "50px",
+                    right: 0,
+                    width: "310px",
+                    maxWidth: "85vw",
+                    zIndex: 1200,
+                    color: DARK,
+                  }}
+                >
+                  <div className="d-flex align-items-center justify-content-between mb-3">
+                    <h6 className="fw-bold mb-0">Notifications</h6>
+                    <span
+                      className="badge rounded-pill"
+                      style={{ background: LIGHT_PURPLE, color: PURPLE }}
+                    >
+                      Updates
+                    </span>
+                  </div>
+
+                  <div
+                    className="text-center rounded-3 py-4 px-3"
+                    style={{ background: "#faf7ff" }}
+                  >
+                    <div style={{ fontSize: 28 }}>🔔</div>
+                    <div className="fw-semibold mt-2">No new notifications</div>
+                    <p className="small text-secondary mb-0 mt-1">
+                      Offers, order updates, and important Food Xpress announcements
+                      will appear here.
+                    </p>
+                  </div>
+                </div>
+              </details>
+
               {isLoggedIn ? (
-                <>
-                  <span
-                    className="rounded-circle d-flex align-items-center justify-content-center text-white fw-bold flex-shrink-0"
+                /* CLICKABLE CUSTOMER ACCOUNT MENU */
+                <details className="position-relative">
+                  <summary
+                    className="d-flex align-items-center gap-2 text-white"
+                    style={{ listStyle: "none", cursor: "pointer" }}
+                    title="Customer account"
+                  >
+                    <span
+                      className="rounded-circle d-flex align-items-center justify-content-center text-white fw-bold flex-shrink-0"
+                      style={{
+                        width: 38,
+                        height: 38,
+                        background: "#a044d9",
+                      }}
+                    >
+                      {customerName.charAt(0).toUpperCase()}
+                    </span>
+
+                    <span className="text-white fw-semibold text-nowrap small">
+                      {customerName}
+                    </span>
+                  </summary>
+
+                  <div
+                    className="position-absolute bg-white shadow rounded-3 p-3"
                     style={{
-                      width: 34,
-                      height: 34,
-                      background: "#a044d9",
+                      top: "50px",
+                      right: 0,
+                      width: "230px",
+                      zIndex: 1200,
+                      color: DARK,
                     }}
                   >
-                    {customerName.charAt(0).toUpperCase()}
-                  </span>
+                    <div className="fw-bold">{customerName}</div>
+                    <div className="small text-secondary">Customer</div>
+                    {customerEmail && (
+                      <div
+                        className="small text-secondary text-break mt-1"
+                      >
+                        {customerEmail}
+                      </div>
+                    )}
 
-                  <span className="text-white fw-semibold text-nowrap small">
-                    {customerName}
-                  </span>
+                    <hr className="my-3" />
 
-                  <button
-                    type="button"
-                    className="btn btn-sm rounded-pill px-3 text-white border border-light text-nowrap"
-                    onClick={handleLogout}
-                  >
-                    Logout
-                  </button>
-                </>
+                    <Link
+                      to="/customer/profile"
+                      className="btn btn-sm w-100 mb-2"
+                      style={{
+                        color: PURPLE,
+                        background: LIGHT_PURPLE,
+                      }}
+                    >
+                      View Profile
+                    </Link>
+
+                    <button
+                      type="button"
+                      className="btn btn-sm btn-outline-danger w-100"
+                      onClick={handleLogout}
+                    >
+                      Logout
+                    </button>
+                  </div>
+                </details>
               ) : (
                 <>
                   <button
@@ -566,19 +698,12 @@ function CustomerHome() {
         </div>
       </nav>
 
-      {/* MOBILE SEARCH */}
+      {/* MOBILE / TABLET SEARCH */}
       <div
         className="d-xl-none px-3 py-2"
         style={{ backgroundColor: LIGHT_PURPLE }}
       >
-        <form
-          onSubmit={(event) => {
-            event.preventDefault();
-            document
-              .getElementById("restaurants")
-              ?.scrollIntoView({ behavior: "smooth" });
-          }}
-        >
+        <form onSubmit={handleSearchSubmit}>
           <div className="input-group rounded-pill overflow-hidden bg-white">
             <span className="input-group-text bg-white border-0">
               🔎
@@ -586,7 +711,7 @@ function CustomerHome() {
 
             <input
               type="search"
-              className="form-control border-0 shadow-none"
+              className="form-control border-0 shadow-none customer-home-search-input"
               placeholder="Search food or restaurants..."
               value={search}
               onChange={(event) => setSearch(event.target.value)}
@@ -663,7 +788,7 @@ function CustomerHome() {
               >
                 {/* Food image */}
                 <div
-                  className="position-relative overflow-hidden rounded-4 shadow"
+                  className="position-relative overflow-hidden rounded-4 shadow customer-home-hero-image-box"
                   style={{ height: 260, backgroundColor: "#e5d0ff" }}
                 >
                   {heroFoods.map((food, index) => (

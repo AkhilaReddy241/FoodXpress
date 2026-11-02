@@ -1,9 +1,12 @@
-
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 
-const API_URL =
-  "https://foodxpress-fmpb.onrender.com/api/customers/addresses";
+const API_URL = import.meta.env.DEV
+  ? "http://localhost:8080/api/customers/addresses"
+  : "https://foodxpress-fmpb.onrender.com/api/customers/addresses";
+
+const PURPLE = "#641bc2";
+const DARK = "#351078";
 
 const emptyAddress = {
   label: "Home",
@@ -325,17 +328,108 @@ function CustomerAddresses() {
   };
 
   return (
-    <div className="min-vh-100 bg-light">
-      <nav className="navbar navbar-dark bg-primary px-3 px-md-5 py-3">
+    <div className="customer-addresses-page min-vh-100 bg-light">
+      <style>{`
+        .customer-addresses-page {
+          width: 100%;
+          min-width: 0;
+          overflow-x: hidden;
+        }
+
+        @media (max-width: 991.98px) {
+          .customer-addresses-page .card {
+            min-width: 0;
+          }
+
+          .customer-addresses-page .card-body {
+            overflow-wrap: anywhere;
+          }
+
+          .customer-addresses-page .form-control,
+          .customer-addresses-page .form-select {
+            min-width: 0;
+            max-width: 100%;
+          }
+        }
+
+        @media (max-width: 767.98px) {
+          .customer-addresses-navbar {
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: space-between;
+            align-items: flex-start;
+            gap: 12px;
+          }
+
+          .customer-addresses-navlinks {
+            display: flex;
+            flex-wrap: wrap;
+            width: 100%;
+            gap: 8px;
+          }
+
+          .customer-addresses-page main {
+            padding-top: 24px !important;
+            padding-bottom: 24px !important;
+          }
+        }
+
+        @media (max-width: 575.98px) {
+          .customer-addresses-navbar {
+            padding-left: 14px !important;
+            padding-right: 14px !important;
+          }
+
+          .customer-addresses-navlinks {
+            gap: 6px !important;
+          }
+
+          .customer-addresses-navlinks .btn {
+            font-size: 12px;
+            padding: 6px 8px;
+          }
+
+          .customer-addresses-page main {
+            padding-left: 12px !important;
+            padding-right: 12px !important;
+          }
+
+          .customer-addresses-page .card-body {
+            padding: 18px !important;
+          }
+
+          .customer-addresses-page .d-flex.justify-content-between {
+            flex-wrap: wrap;
+          }
+        }
+
+        @media (max-width: 360px) {
+          .customer-addresses-navlinks .btn {
+            font-size: 11px;
+            padding: 5px 6px;
+          }
+
+          .customer-addresses-page .card-body {
+            padding: 14px !important;
+          }
+        }
+      `}</style>
+
+      <nav
+        className="navbar navbar-dark px-3 px-md-5 py-3 customer-addresses-navbar"
+        style={{
+          background: `linear-gradient(105deg, ${PURPLE}, ${DARK})`,
+        }}
+      >
         <span
           className="navbar-brand fw-bold"
           role="button"
           onClick={() => navigate("/customer/home")}
         >
-          🍽️ Food Xpress
+            ♨ Food Xpress
         </span>
 
-        <div className="d-flex flex-wrap gap-2">
+        <div className="d-flex flex-wrap gap-2 customer-addresses-navlinks">
           <button
             type="button"
             className="btn btn-light btn-sm"
@@ -400,7 +494,7 @@ function CustomerAddresses() {
         )}
 
         <div className="row g-4">
-          <div className="col-lg-5">
+          <div className="col-12 col-lg-5">
             <div className="card border-0 shadow-sm">
               <div className="card-body p-4">
                 <h5 className="fw-bold mb-4">
@@ -492,7 +586,7 @@ function CustomerAddresses() {
                   </div>
 
                   <div className="row g-3">
-                    <div className="col-sm-6">
+                    <div className="col-12 col-sm-6">
                       <label htmlFor="city" className="form-label fw-semibold">
                         City
                       </label>
@@ -509,7 +603,7 @@ function CustomerAddresses() {
                       />
                     </div>
 
-                    <div className="col-sm-6">
+                    <div className="col-12 col-sm-6">
                       <label
                         htmlFor="state"
                         className="form-label fw-semibold"
@@ -573,7 +667,7 @@ function CustomerAddresses() {
                     </label>
                   </div>
 
-                  <div className="d-flex gap-2">
+                  <div className="d-flex gap-2 customer-addresses-form-buttons">
                     <button
                       type="submit"
                       className="btn btn-primary flex-fill"
@@ -602,8 +696,8 @@ function CustomerAddresses() {
             </div>
           </div>
 
-          <div className="col-lg-7">
-            <div className="d-flex justify-content-between align-items-center mb-3">
+          <div className="col-12 col-lg-7">
+            <div className="d-flex justify-content-between align-items-center mb-3 customer-addresses-list-heading">
               <h5 className="fw-bold mb-0">Your Saved Addresses</h5>
 
               <button

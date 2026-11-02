@@ -4,7 +4,10 @@ import { Link, useNavigate } from "react-router-dom";
 
 const PURPLE = "#641bc2";
 const DARK = "#351078";
-const API_URL = "https://foodxpress-fmpb.onrender.com";
+
+const API = import.meta.env.DEV
+  ? "http://localhost:8080"
+  : "https://foodxpress-fmpb.onrender.com";
 
 function CustomerRestaurants() {
   const navigate = useNavigate();
@@ -18,14 +21,7 @@ function CustomerRestaurants() {
   const [error, setError] = useState("");
   const [reloadKey, setReloadKey] = useState(0);
 
-  const isLoggedIn =
-    sessionStorage.getItem("customerLoggedIn") === "true" &&
-    Boolean(sessionStorage.getItem("customerToken"));
-
-  const customerName =
-    sessionStorage.getItem("customerName") || "Food Lover";
-
-  // Load public restaurant and menu data.
+  // Load restaurants and determine which food types they offer.
   useEffect(() => {
     const controller = new AbortController();
 
@@ -34,7 +30,7 @@ function CustomerRestaurants() {
       setError("");
 
       try {
-        const response = await fetch(`${API_URL}/api/restaurants`, {
+        const response = await fetch(`${API}/api/restaurants`, {
           signal: controller.signal,
         });
 
@@ -56,64 +52,46 @@ function CustomerRestaurants() {
           data.map(async (restaurant) => {
             try {
               const menuResponse = await fetch(
-                `${API_URL}/api/restaurants/${restaurant.id}/menu`,
+                `${API}/api/restaurants/${restaurant.id}/menu`,
                 { signal: controller.signal }
               );
 
               if (!menuResponse.ok) {
-                return [
-                  restaurant.id,
-                  { veg: false, nonVeg: false },
-                ];
+                return [restaurant.id, { veg: false, nonVeg: false }];
               }
 
               const menu = await menuResponse.json();
 
               if (!Array.isArray(menu)) {
-                return [
-                  restaurant.id,
-                  { veg: false, nonVeg: false },
-                ];
+                return [restaurant.id, { veg: false, nonVeg: false }];
               }
 
               return [
                 restaurant.id,
                 {
-                  veg: menu.some(
-                    (item) => item.vegetarian === true
-                  ),
-                  nonVeg: menu.some(
-                    (item) => item.vegetarian === false
-                  ),
+                  veg: menu.some((item) => item.vegetarian === true),
+                  nonVeg: menu.some((item) => item.vegetarian === false),
                 },
               ];
             } catch (err) {
-              if (err.name === "AbortError") {
-                throw err;
-              }
+              if (err.name === "AbortError") throw err;
 
               console.error(
                 `Unable to load menu for ${restaurant.name}:`,
                 err
               );
 
-              return [
-                restaurant.id,
-                { veg: false, nonVeg: false },
-              ];
+              return [restaurant.id, { veg: false, nonVeg: false }];
             }
           })
         );
 
         if (controller.signal.aborted) return;
 
-        setFoodAvailability(
-          Object.fromEntries(availabilityEntries)
-        );
+        setFoodAvailability(Object.fromEntries(availabilityEntries));
       } catch (err) {
         if (err.name !== "AbortError") {
           console.error("Restaurant loading error:", err);
-
           setError(
             "Unable to load restaurants. Please check your backend connection."
           );
@@ -133,9 +111,7 @@ function CustomerRestaurants() {
   const cuisines = [
     "All",
     ...new Set(
-      restaurants
-        .map((restaurant) => restaurant.cuisine)
-        .filter(Boolean)
+      restaurants.map((restaurant) => restaurant.cuisine).filter(Boolean)
     ),
   ];
 
@@ -144,9 +120,7 @@ function CustomerRestaurants() {
 
     const name = (restaurant.name || "").toLowerCase();
     const cuisine = (restaurant.cuisine || "").toLowerCase();
-    const description = (
-      restaurant.description || ""
-    ).toLowerCase();
+    const description = (restaurant.description || "").toLowerCase();
 
     const matchesSearch =
       name.includes(query) ||
@@ -161,22 +135,14 @@ function CustomerRestaurants() {
 
     const matchesFoodType =
       selectedFoodType === "ALL" ||
-      (selectedFoodType === "VEG" &&
-        availability?.veg === true) ||
-      (selectedFoodType === "NON_VEG" &&
-        availability?.nonVeg === true);
+      (selectedFoodType === "VEG" && availability?.veg === true) ||
+      (selectedFoodType === "NON_VEG" && availability?.nonVeg === true);
 
-    return (
-      matchesSearch &&
-      matchesCuisine &&
-      matchesFoodType
-    );
+    return matchesSearch && matchesCuisine && matchesFoodType;
   });
 
   const toggleFoodType = (type) => {
-    setSelectedFoodType((current) =>
-      current === type ? "ALL" : type
-    );
+    setSelectedFoodType((current) => (current === type ? "ALL" : type));
   };
 
   const clearFilters = () => {
@@ -185,7 +151,7 @@ function CustomerRestaurants() {
     setSelectedFoodType("ALL");
   };
 
-  // Protect customer-only navigation using the stored JWT.
+  // Protect customer-only navigation.
   const handleProtectedNavigation = (destination) => {
     const token = sessionStorage.getItem("customerToken");
 
@@ -202,177 +168,40 @@ function CustomerRestaurants() {
     navigate(destination);
   };
 
-  // Log out by removing the JWT from the browser.
-  const handleLogout = async () => {
-    const token = sessionStorage.getItem("customerToken");
-
-    try {
-      if (token) {
-        await fetch(`${API_URL}/api/customers/logout`, {
-          method: "POST",
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
-        });
-      }
-    } catch (err) {
-      console.error("Logout request failed:", err);
-    } finally {
-      sessionStorage.removeItem("customerToken");
-      sessionStorage.removeItem("customerLoggedIn");
-      sessionStorage.removeItem("customerName");
-      sessionStorage.removeItem("customerEmail");
-
-      navigate("/customer/home");
-    }
-  };
-
   return (
-    <div
-      className="min-vh-100"
-      style={{ backgroundColor: "#faf8ff" }}
-    >
+    <div className="min-vh-100" style={{ backgroundColor: "#faf8ff" }}>
+      {/* SIMPLE RESTAURANTS NAVBAR */}
       <nav
-        className="navbar navbar-expand-lg navbar-dark sticky-top py-2"
+        className="navbar navbar-dark sticky-top py-2"
         style={{
           background: "linear-gradient(100deg, #51208f, #381071)",
         }}
       >
-        <div className="container-fluid px-3 px-xl-4">
+        <div className="container-fluid px-3 px-md-4">
           <Link
             to="/customer/home"
-            className="navbar-brand fw-bold"
+            className="navbar-brand fw-bold mb-0"
             style={{ fontSize: 23 }}
           >
-             ♨  Food{" "}
-            <span style={{ color: "#d9a2ff" }}>Xpress</span>
+            ♨ Food <span style={{ color: "#d9a2ff" }}>Xpress</span>
           </Link>
 
-          <button
-            className="navbar-toggler"
-            type="button"
-            data-bs-toggle="collapse"
-            data-bs-target="#restaurantsNavbar"
-            aria-controls="restaurantsNavbar"
-            aria-expanded="false"
-            aria-label="Toggle navigation"
+          <Link
+            to="/customer/home"
+            className="btn btn-sm btn-light rounded-pill px-3"
+            style={{
+              color: DARK,
+              fontWeight: 600,
+              whiteSpace: "nowrap",
+            }}
           >
-            <span className="navbar-toggler-icon" />
-          </button>
-
-          <div
-            className="collapse navbar-collapse"
-            id="restaurantsNavbar"
-          >
-            <div className="navbar-nav mx-auto gap-lg-2">
-              <Link
-                to="/customer/home"
-                className="nav-link text-white"
-              >
-                🏠 Home
-              </Link>
-
-              <Link
-                to="/customer/restaurants"
-                className="nav-link active text-white fw-semibold"
-                aria-current="page"
-              >
-                🍴 Restaurants
-              </Link>
-
-              <button
-                type="button"
-                className="nav-link text-white"
-                onClick={() =>
-                  handleProtectedNavigation("/customer/cart")
-                }
-              >
-                🛒 Cart
-              </button>
-
-              <button
-                type="button"
-                className="nav-link text-white"
-                onClick={() =>
-                  handleProtectedNavigation("/customer/orders")
-                }
-              >
-                📦 Orders
-              </button>
-
-              <button
-                type="button"
-                className="nav-link text-white"
-                onClick={() =>
-                  handleProtectedNavigation("/customer/profile")
-                }
-              >
-                👤 Profile
-              </button>
-
-              <button
-                type="button"
-                className="nav-link text-white"
-                onClick={() =>
-                  handleProtectedNavigation("/customer/addresses")
-                }
-              >
-                📍 Addresses
-              </button>
-            </div>
-
-            <div className="d-flex align-items-center gap-2 mt-3 mt-lg-0">
-              {isLoggedIn ? (
-                <>
-                  <span
-                    className="rounded-circle d-flex align-items-center justify-content-center text-white fw-bold"
-                    style={{
-                      width: 36,
-                      height: 36,
-                      backgroundColor: "#a044d9",
-                    }}
-                  >
-                    {customerName.charAt(0).toUpperCase()}
-                  </span>
-
-                  <span className="text-white small fw-semibold">
-                    {customerName}
-                  </span>
-
-                  <button
-                    type="button"
-                    className="btn btn-sm btn-outline-light rounded-pill"
-                    onClick={handleLogout}
-                  >
-                    Logout
-                  </button>
-                </>
-              ) : (
-                <>
-                  <Link
-                    to="/customer/login"
-                    state={{ from: "/customer/restaurants" }}
-                    className="btn btn-sm btn-outline-light"
-                  >
-                    Login
-                  </Link>
-
-                  <Link
-                    to="/customer/register"
-                    state={{ from: "/customer/restaurants" }}
-                    className="btn btn-sm btn-light"
-                    style={{ color: DARK }}
-                  >
-                    Register
-                  </Link>
-                </>
-              )}
-            </div>
-          </div>
+            ← Back to Home
+          </Link>
         </div>
       </nav>
 
       <main className="container py-4 py-lg-5">
+        {/* HERO SECTION */}
         <section
           className="rounded-4 p-4 p-lg-5 mb-4"
           style={{
@@ -381,16 +210,13 @@ function CustomerRestaurants() {
         >
           <span
             className="badge rounded-pill px-3 py-2 mb-3"
-            style={{
-              backgroundColor: "#e4d0ff",
-              color: DARK,
-            }}
+            style={{ backgroundColor: "#e4d0ff", color: DARK }}
           >
             Discover your next meal
           </span>
 
           <div className="row align-items-center g-3">
-            <div className="col-lg-8">
+            <div className="col-12 col-lg-8">
               <h1
                 className="fw-bold mb-2"
                 style={{
@@ -402,17 +228,23 @@ function CustomerRestaurants() {
               </h1>
 
               <p className="text-secondary mb-0">
-                Discover restaurants, search your favourites,
-                and choose your preferred food type.
+                Discover restaurants, search your favorites, and choose your
+                preferred food type.
               </p>
             </div>
 
-            <div className="col-lg-4 text-lg-end">
-              <span style={{ fontSize: 65 }}>🍕 🍔</span>
+            <div
+              className="col-12 col-lg-4 text-center text-lg-end"
+              style={{
+                fontSize: "clamp(36px, 7vw, 65px)",
+              }}
+            >
+              🍕 🍔
             </div>
           </div>
         </section>
 
+        {/* SEARCH AND FILTERS */}
         <section className="bg-white rounded-4 p-3 p-md-4 mb-4 shadow-sm">
           <div className="row g-3 align-items-end">
             <div className="col-12 col-lg-6">
@@ -425,19 +257,14 @@ function CustomerRestaurants() {
               </label>
 
               <div className="input-group">
-                <span className="input-group-text bg-white">
-                  🔎
-                </span>
-
+                <span className="input-group-text bg-white">🔎</span>
                 <input
                   id="restaurantSearch"
                   type="search"
                   className="form-control"
                   placeholder="Search restaurants or cuisines..."
                   value={search}
-                  onChange={(event) =>
-                    setSearch(event.target.value)
-                  }
+                  onChange={(event) => setSearch(event.target.value)}
                 />
               </div>
             </div>
@@ -459,51 +286,16 @@ function CustomerRestaurants() {
                   style={{
                     flex: "1 1 145px",
                     border: `1px solid ${
-                      selectedFoodType === "VEG"
-                        ? "#198754"
-                        : "#cbd5ce"
+                      selectedFoodType === "VEG" ? "#198754" : "#cbd5ce"
                     }`,
                     backgroundColor:
-                      selectedFoodType === "VEG"
-                        ? "#198754"
-                        : "#ffffff",
-                    color:
-                      selectedFoodType === "VEG"
-                        ? "#ffffff"
-                        : "#198754",
+                      selectedFoodType === "VEG" ? "#198754" : "#fff",
+                    color: selectedFoodType === "VEG" ? "#fff" : "#198754",
                     minHeight: 42,
                   }}
                 >
-                  <span
-                    style={{
-                      display: "inline-flex",
-                      alignItems: "center",
-                      justifyContent: "center",
-                      width: 18,
-                      height: 18,
-                      border: `2px solid ${
-                        selectedFoodType === "VEG"
-                          ? "#ffffff"
-                          : "#198754"
-                      }`,
-                      borderRadius: 3,
-                    }}
-                  >
-                    <span
-                      style={{
-                        width: 8,
-                        height: 8,
-                        borderRadius: "50%",
-                        backgroundColor:
-                          selectedFoodType === "VEG"
-                            ? "#ffffff"
-                            : "#198754",
-                      }}
-                    />
-                  </span>
-
+                  <span>🟢</span>
                   <span className="fw-semibold">Veg</span>
-
                   <span className="small">
                     {selectedFoodType === "VEG" ? "ON" : "OFF"}
                   </span>
@@ -517,51 +309,16 @@ function CustomerRestaurants() {
                   style={{
                     flex: "1 1 145px",
                     border: `1px solid ${
-                      selectedFoodType === "NON_VEG"
-                        ? "#dc3545"
-                        : "#e4c7ca"
+                      selectedFoodType === "NON_VEG" ? "#dc3545" : "#e4c7ca"
                     }`,
                     backgroundColor:
-                      selectedFoodType === "NON_VEG"
-                        ? "#dc3545"
-                        : "#ffffff",
-                    color:
-                      selectedFoodType === "NON_VEG"
-                        ? "#ffffff"
-                        : "#dc3545",
+                      selectedFoodType === "NON_VEG" ? "#dc3545" : "#fff",
+                    color: selectedFoodType === "NON_VEG" ? "#fff" : "#dc3545",
                     minHeight: 42,
                   }}
                 >
-                  <span
-                    style={{
-                      display: "inline-flex",
-                      alignItems: "center",
-                      justifyContent: "center",
-                      width: 18,
-                      height: 18,
-                      border: `2px solid ${
-                        selectedFoodType === "NON_VEG"
-                          ? "#ffffff"
-                          : "#dc3545"
-                      }`,
-                      borderRadius: 3,
-                    }}
-                  >
-                    <span
-                      style={{
-                        width: 8,
-                        height: 8,
-                        borderRadius: "50%",
-                        backgroundColor:
-                          selectedFoodType === "NON_VEG"
-                            ? "#ffffff"
-                            : "#dc3545",
-                      }}
-                    />
-                  </span>
-
+                  <span>🔴</span>
                   <span className="fw-semibold">Non-Veg</span>
-
                   <span className="small">
                     {selectedFoodType === "NON_VEG" ? "ON" : "OFF"}
                   </span>
@@ -584,9 +341,7 @@ function CustomerRestaurants() {
                 id="cuisineFilter"
                 className="form-select"
                 value={selectedCuisine}
-                onChange={(event) =>
-                  setSelectedCuisine(event.target.value)
-                }
+                onChange={(event) => setSelectedCuisine(event.target.value)}
               >
                 {cuisines.map((cuisine) => (
                   <option key={cuisine} value={cuisine}>
@@ -618,6 +373,7 @@ function CustomerRestaurants() {
           </div>
         </section>
 
+        {/* LOADING */}
         {loading && (
           <div className="text-center py-5">
             <div
@@ -625,9 +381,7 @@ function CustomerRestaurants() {
               style={{ color: PURPLE }}
               role="status"
             >
-              <span className="visually-hidden">
-                Loading restaurants...
-              </span>
+              <span className="visually-hidden">Loading restaurants...</span>
             </div>
 
             <p className="text-secondary mt-3">
@@ -636,6 +390,7 @@ function CustomerRestaurants() {
           </div>
         )}
 
+        {/* ERROR */}
         {!loading && error && (
           <div className="alert alert-danger rounded-4">
             <h5 className="fw-bold">Unable to load restaurants</h5>
@@ -652,6 +407,7 @@ function CustomerRestaurants() {
           </div>
         )}
 
+        {/* RESTAURANT CARDS */}
         {!loading && !error && filteredRestaurants.length > 0 && (
           <div className="row g-4">
             {filteredRestaurants.map((restaurant) => (
@@ -714,7 +470,7 @@ function CustomerRestaurants() {
                         "Discover delicious dishes at this restaurant."}
                     </p>
 
-                    <div className="d-flex flex-wrap justify-content-between gap-2 small text-secondary mb-3">
+                    <div className="d-flex flex-wrap justify-content-between gap-2 small text-secondary mb-2">
                       <span>
                         ⭐ {Number(restaurant.rating ?? 0).toFixed(1)}
                       </span>
@@ -722,6 +478,19 @@ function CustomerRestaurants() {
                       <span>
                         🕒 {restaurant.deliveryTimeMinutes ?? "—"} mins
                       </span>
+                    </div>
+
+                    <div className="small mb-3">
+                      {restaurant.freeDelivery ? (
+                        <span className="text-success fw-semibold">
+                          🚚 Free Delivery
+                        </span>
+                      ) : (
+                        <span className="text-secondary">
+                          🚚 Delivery Fee: ₹
+                          {Number(restaurant.deliveryCharge ?? 0).toFixed(2)}
+                        </span>
+                      )}
                     </div>
 
                     <button
@@ -745,8 +514,9 @@ function CustomerRestaurants() {
           </div>
         )}
 
+        {/* NO RESTAURANTS */}
         {!loading && !error && filteredRestaurants.length === 0 && (
-          <div className="bg-white rounded-4 p-5 text-center shadow-sm">
+          <div className="bg-white rounded-4 p-4 p-md-5 text-center shadow-sm">
             <div className="display-3 mb-3">🔎</div>
 
             <h4 className="fw-bold" style={{ color: DARK }}>
@@ -768,6 +538,7 @@ function CustomerRestaurants() {
           </div>
         )}
 
+        {/* FOOTER */}
         <footer className="border-top mt-5 pt-3 d-flex flex-wrap justify-content-between gap-2 small text-secondary">
           <strong style={{ color: PURPLE }}>Food Xpress</strong>
           <span>Good Food · Happy Mood 💜</span>

@@ -2,57 +2,29 @@
 import { useCallback, useEffect, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 
+const API_BASE_URL = import.meta.env.DEV
+  ? "http://localhost:8080"
+  : "https://foodxpress-fmpb.onrender.com";
+
 const PURPLE = "#641bc2";
 const DARK = "#351078";
-const API = "https://foodxpress-fmpb.onrender.com";
 
-// Food-specific images
-const FOOD_IMAGES = {
-  dosa: "https://images.unsplash.com/photo-1668236543090-82eba5ee5976?auto=format&fit=crop&w=800&q=85",
-  idli: "https://images.unsplash.com/photo-1589301760014-d929f3979dbc?auto=format&fit=crop&w=800&q=85",
-  noodles:"https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcTRz6Aah2uVpWZAxfC5aL6-iKE2mfqZV8kdy-naDFinUQ&s=10",
-    friedRice: "https://images.unsplash.com/photo-1603133872878-684f208fb84b?auto=format&fit=crop&w=800&q=85",
-  gardenSalad:
-    "https://images.unsplash.com/photo-1512621776951-a57141f2eefd?auto=format&fit=crop&w=800&q=85",
-  paneerSalad:"https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcQ9lT07RulZ7y7sjUgu_7IRtLjRqT9VmrLwrn2gAygeNA&s=10",
-     mangoJuice:    "https://images.unsplash.com/photo-1600271886742-f049cd451bba?auto=format&fit=crop&w=800&q=85",
-  oreoShake:
-    "https://images.unsplash.com/photo-1572490122747-3968b75cc699?auto=format&fit=crop&w=800&q=85",
-};
+function getImageUrl(url) {
+  if (!url || typeof url !== "string") return "";
 
-function getDisplayName(item) {
-  const name = (item?.name || "").toLowerCase();
-
-  if (name.includes("Oreo Shake")) {
-    return "Oreo Shake";
+  if (
+    url.startsWith("http://") ||
+    url.startsWith("https://") ||
+    url.startsWith("data:") ||
+    url.startsWith("blob:")
+  ) {
+    return url;
   }
 
-  return item?.name || "Food Item";
+  return `${API_BASE_URL}${url.startsWith("/") ? "" : "/"}${url}`;
 }
 
-function getFoodImage(item) {
-  const name = (item?.name || "").toLowerCase();
-
-  if (name.includes("dosa")) return FOOD_IMAGES.dosa;
-  if (name.includes("idli")) return FOOD_IMAGES.idli;
-  if (name.includes("noodle")) return FOOD_IMAGES.noodles;
-  if (name.includes("fried rice")) return FOOD_IMAGES.friedRice;
-  if (name.includes("garden salad")) return FOOD_IMAGES.gardenSalad;
-  if (name.includes("paneer salad")) return FOOD_IMAGES.paneerSalad;
-  if (name.includes("mango juice")) return FOOD_IMAGES.mangoJuice;
-
-  if (name.includes("oreo shake") || name.includes("strawberry shake")) {
-    return FOOD_IMAGES.oreoShake;
-  }
-
-  return item?.imageUrl || item?.image || "";
-}
-
-function getCartItems(data) {
-  if (Array.isArray(data)) return data;
-  return data?.items || data?.cartItems || data?.cart?.items || [];
-}
-
+// Get total quantity from the cart response.
 function getCartQuantity(data) {
   if (!data) return 0;
 
@@ -64,23 +36,21 @@ function getCartQuantity(data) {
     return data.totalItems;
   }
 
-  return getCartItems(data).reduce(
-    (total, item) => total + Number(item.quantity ?? item.count ?? 0),
+  const items = Array.isArray(data)
+    ? data
+    : data.items ||
+      data.cartItems ||
+      data.cart?.items ||
+      data.data?.items ||
+      [];
+
+  if (!Array.isArray(items)) return 0;
+
+  return items.reduce(
+    (total, item) =>
+      total + Number(item.quantity ?? item.count ?? 0),
     0
   );
-}
-
-function getFoodId(cartItem) {
-  return (
-    cartItem.foodItemId ??
-    cartItem.foodItem?.id ??
-    cartItem.item?.id ??
-    cartItem.food?.id
-  );
-}
-
-function getCartItemId(cartItem) {
-  return cartItem.cartItemId ?? cartItem.id;
 }
 
 function CustomerMenu() {
@@ -94,66 +64,13 @@ function CustomerMenu() {
   const [search, setSearch] = useState("");
   const [foodType, setFoodType] = useState("ALL");
   const [message, setMessage] = useState("");
+  const [messageType, setMessageType] = useState("success");
+  const [addingItemId, setAddingItemId] = useState(null);
+
+  // Cart quantity badge
   const [cartCount, setCartCount] = useState(0);
-  const [cartQuantities, setCartQuantities] = useState({});
-  const [cartItemIds, setCartItemIds] = useState({});
-  const [busyItemIds, setBusyItemIds] = useState([]);
 
-  const refreshCartCount = useCallback(async () => {
-    const token = sessionStorage.getItem("customerToken");
-
-    if (!token) {
-      setCartCount(0);
-      setCartQuantities({});
-      setCartItemIds({});
-      return;
-    }
-
-    try {
-      const response = await fetch(`${API}/api/cart`, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-
-      if (!response.ok) return;
-
-      const data = await response.json();
-      const items = getCartItems(data);
-      const quantities = {};
-      const itemIds = {};
-
-      items.forEach((cartItem) => {
-        const foodId = getFoodId(cartItem);
-        const cartItemId = getCartItemId(cartItem);
-        const quantity = Number(cartItem.quantity ?? cartItem.count ?? 0);
-
-        if (foodId != null && quantity > 0) {
-          quantities[String(foodId)] = quantity;
-
-          if (cartItemId != null) {
-            itemIds[String(foodId)] = cartItemId;
-          }
-        }
-      });
-
-      setCartCount(getCartQuantity(data));
-      setCartQuantities(quantities);
-      setCartItemIds(itemIds);
-    } catch (err) {
-      console.error("Unable to refresh cart:", err);
-    }
-  }, []);
-
-  useEffect(() => {
-    refreshCartCount();
-
-    const handleCartUpdate = () => refreshCartCount();
-    window.addEventListener("cartUpdated", handleCartUpdate);
-
-    return () => {
-      window.removeEventListener("cartUpdated", handleCartUpdate);
-    };
-  }, [refreshCartCount]);
-
+  // Load restaurant and menu data.
   useEffect(() => {
     const controller = new AbortController();
 
@@ -163,40 +80,63 @@ function CustomerMenu() {
 
       try {
         const [restaurantResponse, menuResponse] = await Promise.all([
-          fetch(`${API}/api/restaurants`, {
+          fetch(`${API_BASE_URL}/api/restaurants`, {
             signal: controller.signal,
           }),
-          fetch(`${API}/api/restaurants/${restaurantId}/menu`, {
-            signal: controller.signal,
-          }),
+          fetch(
+            `${API_BASE_URL}/api/restaurants/${restaurantId}/menu`,
+            { signal: controller.signal }
+          ),
         ]);
 
         if (!restaurantResponse.ok || !menuResponse.ok) {
-          throw new Error("Unable to load restaurant menu.");
+          throw new Error(
+            `Unable to load restaurant menu. Restaurants: ${restaurantResponse.status}, menu: ${menuResponse.status}.`
+          );
         }
 
         const restaurants = await restaurantResponse.json();
         const menu = await menuResponse.json();
+
+        if (!Array.isArray(restaurants)) {
+          throw new Error(
+            "The restaurants API returned an unexpected response."
+          );
+        }
+
+        if (!Array.isArray(menu)) {
+          throw new Error(
+            "The menu API did not return a list of food items."
+          );
+        }
 
         const selectedRestaurant = restaurants.find(
           (item) => String(item.id) === String(restaurantId)
         );
 
         if (!selectedRestaurant) {
-          throw new Error("Restaurant not found.");
+          throw new Error(
+            `Restaurant #${restaurantId} was not found in the restaurant list.`
+          );
         }
 
         if (controller.signal.aborted) return;
 
         setRestaurant(selectedRestaurant);
-        setFoodItems(Array.isArray(menu) ? menu : []);
+        setFoodItems(menu);
       } catch (err) {
         if (err.name !== "AbortError") {
           console.error("Menu API error:", err);
-          setError(err.message || "Unable to load menu. Please check the backend.");
+
+          setError(
+            err.message ||
+              "Unable to load menu. Please check whether the backend is running."
+          );
         }
       } finally {
-        if (!controller.signal.aborted) setLoading(false);
+        if (!controller.signal.aborted) {
+          setLoading(false);
+        }
       }
     };
 
@@ -205,9 +145,56 @@ function CustomerMenu() {
     return () => controller.abort();
   }, [restaurantId]);
 
+  // Refresh the logged-in customer's cart quantity.
+  const refreshCartCount = useCallback(async () => {
+    const token = sessionStorage.getItem("customerToken");
+
+    if (!token) {
+      setCartCount(0);
+      return;
+    }
+
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/cart`, {
+        headers: {
+          Authorization: `Bearer ${token}`,
+          Accept: "application/json",
+        },
+      });
+
+      if (!response.ok) {
+        console.error("Cart count request failed:", response.status);
+        return;
+      }
+
+      const data = await response.json();
+      setCartCount(getCartQuantity(data));
+    } catch (err) {
+      console.error("Unable to refresh cart count:", err);
+    }
+  }, []);
+
+  // Refresh on page load, focus, and cart updates.
+  useEffect(() => {
+    refreshCartCount();
+
+    const handleCartUpdate = () => refreshCartCount();
+    const handleFocus = () => refreshCartCount();
+
+    window.addEventListener("cartUpdated", handleCartUpdate);
+    window.addEventListener("focus", handleFocus);
+
+    return () => {
+      window.removeEventListener("cartUpdated", handleCartUpdate);
+      window.removeEventListener("focus", handleFocus);
+    };
+  }, [refreshCartCount]);
+
+  // Search and filter menu items.
   const filteredItems = foodItems.filter((item) => {
     const query = search.trim().toLowerCase();
-    const name = getDisplayName(item).toLowerCase();
+
+    const name = (item.name || "").toLowerCase();
     const category = (item.category || "").toLowerCase();
     const description = (item.description || "").toLowerCase();
 
@@ -228,133 +215,102 @@ function CustomerMenu() {
     setFoodType((current) => (current === type ? "ALL" : type));
   };
 
-  const changeBusyState = (foodId, busy) => {
-    setBusyItemIds((current) =>
-      busy
-        ? current.includes(String(foodId))
-          ? current
-          : [...current, String(foodId)]
-        : current.filter((id) => id !== String(foodId))
-    );
-  };
-
+  // Add an item using the customer's JWT.
   const addToCart = async (item) => {
-    const token = sessionStorage.getItem("customerToken");
-    const foodId = String(item.id);
+    setMessage("");
+    setError("");
 
-    if (!token) {
+    const token = sessionStorage.getItem("customerToken");
+    const isLoggedIn =
+      sessionStorage.getItem("customerLoggedIn") === "true";
+
+    if (!isLoggedIn || !token) {
       navigate("/customer/login", {
-        state: { from: window.location.pathname },
+        state: { from: `/customer/restaurants/${restaurantId}/menu` },
       });
+
       return;
     }
 
-    if (busyItemIds.includes(foodId)) return;
+    const foodItemId = item.id ?? item.foodItemId;
 
-    changeBusyState(foodId, true);
-    setMessage("");
+    if (foodItemId == null) {
+      setMessageType("danger");
+      setMessage("Unable to add this item because its food ID is missing.");
+      return;
+    }
+
+    setAddingItemId(foodItemId);
 
     try {
-      const response = await fetch(`${API}/api/cart/items`, {
+      const response = await fetch(`${API_BASE_URL}/api/cart/items`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
+          Accept: "application/json",
           Authorization: `Bearer ${token}`,
         },
         body: JSON.stringify({
-          foodItemId: item.id,
+          foodItemId,
           quantity: 1,
         }),
       });
 
+      const responseText = await response.text();
+
+      let responseData = {};
+
+      if (responseText) {
+        try {
+          responseData = JSON.parse(responseText);
+        } catch {
+          responseData = { message: responseText };
+        }
+      }
+
       if (response.status === 401) {
         sessionStorage.removeItem("customerToken");
+        sessionStorage.removeItem("customerLoggedIn");
+        sessionStorage.removeItem("customerName");
+        sessionStorage.removeItem("customerEmail");
+
         navigate("/customer/login", {
-          state: { from: window.location.pathname },
+          state: { from: `/customer/restaurants/${restaurantId}/menu` },
         });
+
         return;
       }
 
       if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}));
-        throw new Error(errorData.message || "Unable to add food to cart.");
+        throw new Error(
+          responseData.message ||
+            responseData.detail ||
+            responseData.error ||
+            `Unable to add food to cart (${response.status}).`
+        );
       }
 
-      await refreshCartCount();
+      setMessageType("success");
+      setMessage(`${item.name} added to your cart successfully!`);
+
+      // Notify CustomerHome and refresh this page's cart count.
       window.dispatchEvent(new Event("cartUpdated"));
-      setMessage(`${getDisplayName(item)} added to your cart.`);
+      await refreshCartCount();
+
     } catch (err) {
       console.error("Add to cart error:", err);
-      setMessage(err.message || "Unable to add food to cart.");
-    } finally {
-      changeBusyState(foodId, false);
-    }
-  };
 
-  const decreaseQuantity = async (item) => {
-    const token = sessionStorage.getItem("customerToken");
-    const foodId = String(item.id);
-    const quantity = Number(cartQuantities[foodId] || 0);
-    const cartItemId = cartItemIds[foodId];
+      setMessageType("danger");
 
-    if (!token) {
-      navigate("/customer/login", {
-        state: { from: window.location.pathname },
-      });
-      return;
-    }
-
-    if (quantity <= 0 || busyItemIds.includes(foodId)) return;
-
-    if (cartItemId == null) {
-      setMessage("Unable to identify this cart item. Please open your cart and try again.");
-      await refreshCartCount();
-      return;
-    }
-
-    changeBusyState(foodId, true);
-    setMessage("");
-
-    try {
-      const isLastItem = quantity === 1;
-
-      const response = await fetch(`${API}/api/cart/items/${cartItemId}`, {
-        method: isLastItem ? "DELETE" : "PUT",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
-        },
-        ...(!isLastItem && {
-          body: JSON.stringify({ quantity: quantity - 1 }),
-        }),
-      });
-
-      if (response.status === 401) {
-        sessionStorage.removeItem("customerToken");
-        navigate("/customer/login", {
-          state: { from: window.location.pathname },
-        });
-        return;
+      if (err instanceof TypeError) {
+        setMessage(
+          "Cannot connect to the cart API. Check that Spring Boot is running on port 8080 and that backend CORS allows http://localhost:5173."
+        );
+      } else {
+        setMessage(err.message || "Unable to add food to cart.");
       }
-
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}));
-        throw new Error(errorData.message || "Unable to update cart quantity.");
-      }
-
-      await refreshCartCount();
-      window.dispatchEvent(new Event("cartUpdated"));
-
-      setMessage(
-        isLastItem
-          ? `${getDisplayName(item)} removed from your cart.`
-          : `${getDisplayName(item)} quantity decreased.`
-      );
-    } catch (err) {
-      console.error("Decrease quantity error:", err);
-      setMessage(err.message || "Unable to update cart quantity.");
     } finally {
-      changeBusyState(foodId, false);
+      setAddingItemId(null);
     }
   };
 
@@ -364,10 +320,143 @@ function CustomerMenu() {
   };
 
   return (
-    <div className="min-vh-100 bg-light">
+    <div className="min-vh-100 bg-light customer-menu-page">
+
+      {/* RESPONSIVE CSS ONLY - ORIGINAL DESIGN PRESERVED */}
+      <style>{`
+        .customer-menu-page {
+          width: 100%;
+          max-width: 100%;
+          overflow-x: hidden;
+        }
+
+        .customer-menu-navbar .container-fluid {
+          flex-wrap: wrap;
+          gap: 8px;
+        }
+
+        .customer-menu-navbar .navbar-brand {
+          min-width: 0;
+          margin-right: 0;
+        }
+
+        .customer-menu-navbar .navbar-brand span {
+          white-space: nowrap;
+        }
+
+        .customer-menu-navbar .customer-menu-nav-buttons {
+          display: flex;
+          flex-wrap: wrap;
+          align-items: center;
+          gap: 8px;
+        }
+
+        .customer-menu-page .customer-menu-main {
+          min-width: 0;
+        }
+
+        .customer-menu-page .customer-menu-search-group {
+          width: 100%;
+          min-width: 0;
+        }
+
+        .customer-menu-page .customer-menu-search-group .form-control {
+          min-width: 0;
+        }
+
+        .customer-menu-page .customer-food-actions {
+          display: flex;
+          flex-wrap: wrap;
+          gap: 8px;
+          width: 100%;
+        }
+
+        .customer-menu-page .customer-food-actions > button {
+          flex: 1 1 auto;
+        }
+
+        .customer-menu-page .customer-menu-card-image {
+          width: 100%;
+          height: 185px;
+          object-fit: cover;
+        }
+
+        @media (max-width: 575.98px) {
+          .customer-menu-navbar .navbar-brand span {
+            font-size: 19px !important;
+          }
+
+          .customer-menu-navbar .customer-menu-nav-buttons {
+            gap: 6px;
+          }
+
+          .customer-menu-navbar .customer-menu-nav-buttons .btn {
+            padding: 6px 10px;
+            font-size: 12px;
+            white-space: nowrap;
+          }
+
+          .customer-menu-page .customer-menu-main {
+            padding-left: 12px;
+            padding-right: 12px;
+            padding-top: 20px !important;
+            padding-bottom: 24px !important;
+          }
+
+          .customer-menu-page .customer-menu-restaurant-details {
+            padding: 20px !important;
+          }
+
+          .customer-menu-page .customer-menu-search-group {
+            flex: 1 1 100% !important;
+            max-width: 100% !important;
+            min-width: 0 !important;
+          }
+
+          .customer-menu-page .customer-menu-food-card .card-body {
+            padding: 12px !important;
+          }
+
+          .customer-menu-page .customer-menu-card-image {
+            height: 165px;
+          }
+
+          .customer-menu-page .customer-menu-add-button {
+            padding: 6px 12px;
+            white-space: nowrap;
+          }
+        }
+
+        @media (min-width: 576px) and (max-width: 767.98px) {
+          .customer-menu-page .customer-menu-card-image {
+            height: 175px;
+          }
+        }
+
+        @media (min-width: 768px) and (max-width: 991.98px) {
+          .customer-menu-page .customer-menu-card-image {
+            height: 180px;
+          }
+        }
+
+        @media (max-width: 400px) {
+          .customer-menu-navbar .navbar-brand span {
+            font-size: 17px !important;
+          }
+
+          .customer-menu-navbar .customer-menu-nav-buttons .btn {
+            padding: 5px 8px;
+            font-size: 11px;
+          }
+        }
+      `}</style>
+
+      {/* NAVBAR */}
       <nav
-        className="navbar navbar-dark"
-        style={{ background: "linear-gradient(100deg, #51208f, #381071)" }}
+        className="navbar navbar-dark customer-menu-navbar"
+        style={{
+          background: "linear-gradient(100deg, #51208f, #381071)",
+        }}
       >
         <div className="container-fluid px-3 px-xl-5">
           <Link
@@ -375,12 +464,15 @@ function CustomerMenu() {
             className="navbar-brand d-flex align-items-center gap-2"
           >
             <span className="fw-bold fs-4">
-              Food <span style={{ color: "#d9a2ff" }}>Xpress</span>
+              ♨Food <span style={{ color: "#d9a2ff" }}>Xpress</span>
             </span>
           </Link>
 
-          <div className="d-flex gap-2">
-            <Link to="/customer/home" className="btn btn-outline-light rounded-pill">
+          <div className="d-flex gap-2 customer-menu-nav-buttons">
+            <Link
+              to="/customer/home"
+              className="btn btn-outline-light rounded-pill"
+            >
               ← Home
             </Link>
 
@@ -391,8 +483,9 @@ function CustomerMenu() {
               onClick={() => navigate("/customer/cart")}
             >
               🛒 Cart
+
               {cartCount > 0 && (
-                <span className="badge rounded-pill bg-danger ms-2">
+                <span className="badge rounded-pill bg-danger ms-1">
                   {cartCount}
                 </span>
               )}
@@ -401,13 +494,16 @@ function CustomerMenu() {
         </div>
       </nav>
 
-      <main className="container py-4 py-lg-5">
+      <main className="container py-4 py-lg-5 customer-menu-main">
+        {/* RESTAURANT DETAILS */}
         {restaurant && (
           <section
             className="card border-0 rounded-4 overflow-hidden mb-4 shadow-sm"
-            style={{ background: "linear-gradient(110deg, #f4e9ff, #e8d4ff)" }}
+            style={{
+              background: "linear-gradient(110deg, #f4e9ff, #e8d4ff)",
+            }}
           >
-            <div className="card-body p-4 p-lg-5">
+            <div className="card-body p-4 p-lg-5 customer-menu-restaurant-details">
               <span
                 className="badge rounded-pill mb-3 px-3 py-2"
                 style={{ backgroundColor: PURPLE }}
@@ -416,23 +512,34 @@ function CustomerMenu() {
               </span>
 
               <div className="row align-items-center g-3">
-                <div className="col-md-8">
+                <div className="col-12 col-md-8">
                   <h1 className="fw-bold" style={{ color: DARK }}>
                     {restaurant.name}
                   </h1>
-                  <p className="text-secondary mb-2">{restaurant.description}</p>
+
+                  <p className="text-secondary mb-2">
+                    {restaurant.description}
+                  </p>
+
                   <div className="d-flex flex-wrap gap-3 small">
                     <span className="fw-semibold">
                       ⭐ {Number(restaurant.rating ?? 0).toFixed(1)}
                     </span>
-                    <span>🕒 {restaurant.deliveryTimeMinutes ?? "N/A"} mins</span>
+
                     <span>
-                      🚲 {restaurant.freeDelivery ? "Free delivery" : "Delivery charges apply"}
+                      🕒 {restaurant.deliveryTimeMinutes} mins
+                    </span>
+
+                    <span>
+                      🚲{" "}
+                      {restaurant.freeDelivery
+                        ? "Free delivery"
+                        : "Delivery charges apply"}
                     </span>
                   </div>
                 </div>
 
-                <div className="col-md-4 text-md-end">
+                <div className="col-12 col-md-4 text-center text-md-end">
                   <span className="display-3" role="img" aria-label="Food">
                     🍽️
                   </span>
@@ -442,19 +549,30 @@ function CustomerMenu() {
           </section>
         )}
 
+        {/* MENU HEADING, SEARCH AND FILTERS */}
         <div className="row align-items-center g-3 mb-4">
           <div className="col-12 col-xl-4">
-            <h2 className="fw-bold mb-1" style={{ color: DARK }}>Our Menu</h2>
-            <p className="text-secondary mb-0">Discover something delicious.</p>
+            <h2 className="fw-bold mb-1" style={{ color: DARK }}>
+              Our Menu
+            </h2>
+
+            <p className="text-secondary mb-0">
+              Discover something delicious.
+            </p>
           </div>
 
           <div className="col-12 col-xl-8">
             <div className="d-flex flex-wrap justify-content-xl-end align-items-center gap-2">
               <div
-                className="input-group"
-                style={{ flex: "1 1 220px", maxWidth: 350, minWidth: 200 }}
+                className="input-group customer-menu-search-group"
+                style={{
+                  flex: "1 1 220px",
+                  maxWidth: 350,
+                  minWidth: 200,
+                }}
               >
                 <span className="input-group-text bg-white">🔎</span>
+
                 <input
                   type="search"
                   className="form-control"
@@ -465,94 +583,120 @@ function CustomerMenu() {
                 />
               </div>
 
-              <button
-                type="button"
-                aria-pressed={foodType === "ALL"}
-                onClick={() => setFoodType("ALL")}
-                className="btn rounded-3 px-3"
-                style={{
-                  minHeight: 42,
-                  backgroundColor: foodType === "ALL" ? PURPLE : "#ffffff",
-                  color: foodType === "ALL" ? "#ffffff" : DARK,
-                  border: `1px solid ${foodType === "ALL" ? PURPLE : "#ced4da"}`,
-                }}
-              >
-                All Food
-              </button>
-
-              <button
-                type="button"
-                aria-pressed={foodType === "VEG"}
-                onClick={() => toggleFoodType("VEG")}
-                className="btn rounded-3 px-3 d-inline-flex align-items-center justify-content-center gap-2"
-                style={{
-                  minHeight: 42,
-                  backgroundColor: foodType === "VEG" ? "#198754" : "#ffffff",
-                  color: foodType === "VEG" ? "#ffffff" : "#198754",
-                  border: `1px solid ${foodType === "VEG" ? "#198754" : "#a8d5bc"}`,
-                  whiteSpace: "nowrap",
-                }}
-              >
-                <span
+              <div className="customer-food-actions">
+                <button
+                  type="button"
+                  aria-pressed={foodType === "ALL"}
+                  onClick={() => setFoodType("ALL")}
+                  className="btn rounded-3 px-3"
                   style={{
-                    width: 17,
-                    height: 17,
-                    display: "inline-flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    border: `2px solid ${foodType === "VEG" ? "#ffffff" : "#198754"}`,
-                    borderRadius: 3,
+                    minHeight: 42,
+                    backgroundColor:
+                      foodType === "ALL" ? PURPLE : "#ffffff",
+                    color: foodType === "ALL" ? "#ffffff" : DARK,
+                    border: `1px solid ${
+                      foodType === "ALL" ? PURPLE : "#ced4da"
+                    }`,
+                  }}
+                >
+                  All Food
+                </button>
+
+                <button
+                  type="button"
+                  aria-pressed={foodType === "VEG"}
+                  onClick={() => toggleFoodType("VEG")}
+                  className="btn rounded-3 px-3 d-inline-flex align-items-center justify-content-center gap-2"
+                  style={{
+                    minHeight: 42,
+                    backgroundColor:
+                      foodType === "VEG" ? "#198754" : "#ffffff",
+                    color: foodType === "VEG" ? "#ffffff" : "#198754",
+                    border: `1px solid ${
+                      foodType === "VEG" ? "#198754" : "#a8d5bc"
+                    }`,
+                    whiteSpace: "nowrap",
                   }}
                 >
                   <span
                     style={{
-                      width: 7,
-                      height: 7,
-                      borderRadius: "50%",
-                      backgroundColor: foodType === "VEG" ? "#ffffff" : "#198754",
+                      width: 17,
+                      height: 17,
+                      display: "inline-flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      border: `2px solid ${
+                        foodType === "VEG" ? "#ffffff" : "#198754"
+                      }`,
+                      borderRadius: 3,
                     }}
-                  />
-                </span>
-                <span>Veg</span>
-                <span className="small fw-semibold">{foodType === "VEG" ? "ON" : "OFF"}</span>
-              </button>
+                  >
+                    <span
+                      style={{
+                        width: 7,
+                        height: 7,
+                        borderRadius: "50%",
+                        backgroundColor:
+                          foodType === "VEG" ? "#ffffff" : "#198754",
+                      }}
+                    />
+                  </span>
 
-              <button
-                type="button"
-                aria-pressed={foodType === "NON_VEG"}
-                onClick={() => toggleFoodType("NON_VEG")}
-                className="btn rounded-3 px-3 d-inline-flex align-items-center justify-content-center gap-2"
-                style={{
-                  minHeight: 42,
-                  backgroundColor: foodType === "NON_VEG" ? "#dc3545" : "#ffffff",
-                  color: foodType === "NON_VEG" ? "#ffffff" : "#dc3545",
-                  border: `1px solid ${foodType === "NON_VEG" ? "#dc3545" : "#efb6bd"}`,
-                  whiteSpace: "nowrap",
-                }}
-              >
-                <span
+                  <span>Veg</span>
+
+                  <span className="small fw-semibold">
+                    {foodType === "VEG" ? "ON" : "OFF"}
+                  </span>
+                </button>
+
+                <button
+                  type="button"
+                  aria-pressed={foodType === "NON_VEG"}
+                  onClick={() => toggleFoodType("NON_VEG")}
+                  className="btn rounded-3 px-3 d-inline-flex align-items-center justify-content-center gap-2"
                   style={{
-                    width: 17,
-                    height: 17,
-                    display: "inline-flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    border: `2px solid ${foodType === "NON_VEG" ? "#ffffff" : "#dc3545"}`,
-                    borderRadius: 3,
+                    minHeight: 42,
+                    backgroundColor:
+                      foodType === "NON_VEG" ? "#dc3545" : "#ffffff",
+                    color:
+                      foodType === "NON_VEG" ? "#ffffff" : "#dc3545",
+                    border: `1px solid ${
+                      foodType === "NON_VEG" ? "#dc3545" : "#efb6bd"
+                    }`,
+                    whiteSpace: "nowrap",
                   }}
                 >
                   <span
                     style={{
-                      width: 7,
-                      height: 7,
-                      borderRadius: "50%",
-                      backgroundColor: foodType === "NON_VEG" ? "#ffffff" : "#dc3545",
+                      width: 17,
+                      height: 17,
+                      display: "inline-flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      border: `2px solid ${
+                        foodType === "NON_VEG" ? "#ffffff" : "#dc3545"
+                      }`,
+                      borderRadius: 3,
                     }}
-                  />
-                </span>
-                <span>Non-Veg</span>
-                <span className="small fw-semibold">{foodType === "NON_VEG" ? "ON" : "OFF"}</span>
-              </button>
+                  >
+                    <span
+                      style={{
+                        width: 7,
+                        height: 7,
+                        borderRadius: "50%",
+                        backgroundColor:
+                          foodType === "NON_VEG" ? "#ffffff" : "#dc3545",
+                      }}
+                    />
+                  </span>
+
+                  <span>Non-Veg</span>
+
+                  <span className="small fw-semibold">
+                    {foodType === "NON_VEG" ? "ON" : "OFF"}
+                  </span>
+                </button>
+              </div>
             </div>
 
             {(search || foodType !== "ALL") && (
@@ -569,9 +713,14 @@ function CustomerMenu() {
           </div>
         </div>
 
+        {/* SUCCESS OR ERROR MESSAGE */}
         {message && (
-          <div className="alert alert-info alert-dismissible" role="status">
+          <div
+            className={`alert alert-${messageType} alert-dismissible`}
+            role="status"
+          >
             {message}
+
             <button
               type="button"
               className="btn-close"
@@ -581,18 +730,30 @@ function CustomerMenu() {
           </div>
         )}
 
+        {/* LOADING */}
         {loading && (
           <div className="text-center py-5">
-            <div className="spinner-border" style={{ color: PURPLE }} role="status">
-              <span className="visually-hidden">Loading menu...</span>
+            <div
+              className="spinner-border"
+              style={{ color: PURPLE }}
+              role="status"
+            >
+              <span className="visually-hidden">
+                Loading menu...
+              </span>
             </div>
-            <p className="text-secondary mt-3">Loading menu from database...</p>
+
+            <p className="text-secondary mt-3">
+              Loading menu from database...
+            </p>
           </div>
         )}
 
+        {/* MENU LOADING ERROR */}
         {!loading && error && (
           <div className="alert alert-danger">
             {error}
+
             <div className="mt-3">
               <button
                 type="button"
@@ -605,35 +766,29 @@ function CustomerMenu() {
           </div>
         )}
 
+        {/* FOOD ITEMS */}
         {!loading && !error && (
           <>
             {filteredItems.length > 0 ? (
               <div className="row g-4">
                 {filteredItems.map((item) => {
-                  const foodId = String(item.id);
-                  const quantity = Number(cartQuantities[foodId] || 0);
-                  const isBusy = busyItemIds.includes(foodId);
-                  const foodImage = getFoodImage(item);
-                  const displayName = getDisplayName(item);
+                  const foodItemId = item.id ?? item.foodItemId;
+                  const isAdding =
+                    addingItemId != null &&
+                    String(addingItemId) === String(foodItemId);
 
                   return (
-                    <div className="col-12 col-sm-6 col-lg-4 col-xl-3" key={item.id}>
-                      <article className="card h-100 rounded-4 overflow-hidden border-0 shadow-sm">
-                        {foodImage ? (
+                    <div
+                      className="col-12 col-sm-6 col-lg-4 col-xl-3"
+                      key={foodItemId}
+                    >
+                      <article className="card h-100 rounded-4 overflow-hidden border-0 shadow-sm customer-menu-food-card">
+                        {item.imageUrl ? (
                           <img
-                            src={foodImage}
-                            alt={displayName}
-                            className="card-img-top"
+                            src={getImageUrl(item.imageUrl)}
+                            alt={item.name}
+                            className="card-img-top customer-menu-card-image"
                             loading="lazy"
-                            onError={(event) => {
-                              event.currentTarget.onerror = null;
-                              event.currentTarget.style.display = "none";
-                            }}
-                            style={{
-                              height: 185,
-                              width: "100%",
-                              objectFit: "cover",
-                            }}
                           />
                         ) : (
                           <div
@@ -653,7 +808,10 @@ function CustomerMenu() {
                         <div className="card-body p-3 d-flex flex-column">
                           <span
                             className="badge rounded-pill align-self-start mb-2"
-                            style={{ backgroundColor: "#f0e4ff", color: DARK }}
+                            style={{
+                              backgroundColor: "#f0e4ff",
+                              color: DARK,
+                            }}
                           >
                             {item.category}
                           </span>
@@ -661,87 +819,46 @@ function CustomerMenu() {
                           {typeof item.vegetarian === "boolean" && (
                             <span
                               className={`badge rounded-pill align-self-start mb-2 ${
-                                item.vegetarian ? "bg-success" : "bg-danger"
+                                item.vegetarian
+                                  ? "bg-success"
+                                  : "bg-danger"
                               }`}
                             >
-                              {item.vegetarian ? "🟢 Veg" : "🔴 Non-Veg"}
+                              {item.vegetarian
+                                ? "🟢 Veg"
+                                : "🔴 Non-Veg"}
                             </span>
                           )}
 
-                          <h5 className="fw-bold mb-2" style={{ color: DARK }}>
-                            {displayName}
+                          <h5
+                            className="fw-bold mb-2"
+                            style={{ color: DARK }}
+                          >
+                            {item.name}
                           </h5>
 
                           <p className="text-secondary small">
-                            {item.name?.toLowerCase().includes("strawberry shake")
-                              ? "Creamy Oreo chocolate milkshake"
-                              : item.description || "Delicious food, freshly prepared."}
+                            {item.description ||
+                              "Delicious food, freshly prepared."}
                           </p>
 
-                          <div className="d-flex justify-content-between align-items-center mt-auto gap-2">
-                            <span className="fw-bold fs-5" style={{ color: PURPLE }}>
-                              ₹{Number(item.price).toFixed(2)}
+                          <div className="d-flex flex-wrap justify-content-between align-items-center mt-auto gap-2">
+                            <span
+                              className="fw-bold fs-5"
+                              style={{ color: PURPLE }}
+                            >
+                              ₹{Number(item.price ?? 0).toFixed(2)}
                             </span>
 
-                            {quantity === 0 ? (
-                              <button
-                                type="button"
-                                className="btn btn-sm text-white rounded-pill px-3"
-                                style={{ backgroundColor: PURPLE }}
-                                disabled={isBusy}
-                                onClick={() => addToCart(item)}
-                              >
-                                {isBusy ? "Adding..." : "+ Add"}
-                              </button>
-                            ) : (
-                              <div
-                                className="d-inline-flex align-items-center rounded-pill overflow-hidden"
-                                style={{ border: `1px solid ${PURPLE}`, minHeight: 36 }}
-                              >
-                                <button
-                                  type="button"
-                                  aria-label={`Decrease ${displayName} quantity`}
-                                  className="btn btn-sm rounded-0 fw-bold"
-                                  style={{
-                                    color: PURPLE,
-                                    backgroundColor: "#f0e4ff",
-                                    width: 36,
-                                    height: 36,
-                                    fontSize: 20,
-                                    lineHeight: 1,
-                                  }}
-                                  disabled={isBusy}
-                                  onClick={() => decreaseQuantity(item)}
-                                >
-                                  −
-                                </button>
-
-                                <span
-                                  className="fw-bold text-center px-2"
-                                  aria-live="polite"
-                                  style={{ color: DARK, minWidth: 34 }}
-                                >
-                                  {isBusy ? "…" : quantity}
-                                </span>
-
-                                <button
-                                  type="button"
-                                  aria-label={`Increase ${displayName} quantity`}
-                                  className="btn btn-sm rounded-0 fw-bold text-white"
-                                  style={{
-                                    backgroundColor: PURPLE,
-                                    width: 36,
-                                    height: 36,
-                                    fontSize: 20,
-                                    lineHeight: 1,
-                                  }}
-                                  disabled={isBusy}
-                                  onClick={() => addToCart(item)}
-                                >
-                                  +
-                                </button>
-                              </div>
-                            )}
+                            <button
+                              type="button"
+                              className="btn btn-sm text-white rounded-pill px-3 customer-menu-add-button"
+                              style={{ backgroundColor: PURPLE }}
+                              disabled={isAdding || addingItemId !== null}
+                              onClick={() => addToCart(item)}
+                            >
+                              {isAdding ? "Adding..." : "+ Add"}
+                            </button>
                           </div>
                         </div>
                       </article>
@@ -752,9 +869,13 @@ function CustomerMenu() {
             ) : (
               <div className="text-center bg-white rounded-4 p-5 shadow-sm">
                 <div className="display-3 mb-3">🍽️</div>
+
                 <h4 className="fw-bold" style={{ color: DARK }}>
-                  {search || foodType !== "ALL" ? "No matching food found" : "Menu coming soon"}
+                  {search || foodType !== "ALL"
+                    ? "No matching food found"
+                    : "Menu coming soon"}
                 </h4>
+
                 <p className="text-secondary">
                   {search || foodType !== "ALL"
                     ? "Try another search or food filter."

@@ -29,24 +29,33 @@ public class CustomerService {
             CustomerRepository customerRepository,
             PasswordEncoder passwordEncoder,
             JwtService jwtService) {
+
         this.customerRepository = customerRepository;
         this.passwordEncoder = passwordEncoder;
         this.jwtService = jwtService;
     }
+
+    // =========================
+    // REGISTER CUSTOMER
+    // =========================
 
     @Transactional
     public CustomerRegisterResponse register(CustomerRegisterRequest request) {
 
         if (!request.password().equals(request.confirmPassword())) {
             throw new ResponseStatusException(
-                    HttpStatus.BAD_REQUEST, "Passwords do not match");
+                    HttpStatus.BAD_REQUEST,
+                    "Passwords do not match");
         }
 
-        String email = request.email().trim().toLowerCase(Locale.ROOT);
+        String email = request.email()
+                .trim()
+                .toLowerCase(Locale.ROOT);
 
         if (customerRepository.existsByEmailIgnoreCase(email)) {
             throw new ResponseStatusException(
-                    HttpStatus.CONFLICT, "Email is already registered");
+                    HttpStatus.CONFLICT,
+                    "Email is already registered");
         }
 
         Customer customer = new Customer(
@@ -54,6 +63,8 @@ public class CustomerService {
                 email,
                 request.phone().trim(),
                 passwordEncoder.encode(request.password()));
+
+        customer.setActive(true);
 
         Customer saved = customerRepository.save(customer);
 
@@ -70,19 +81,37 @@ public class CustomerService {
                 token);
     }
 
+    // =========================
+    // CUSTOMER LOGIN
+    // =========================
+
     @Transactional(readOnly = true)
     public CustomerLoginResponse login(CustomerLoginRequest request) {
 
-        String email = request.email().trim().toLowerCase(Locale.ROOT);
+        String email = request.email()
+                .trim()
+                .toLowerCase(Locale.ROOT);
 
-        Customer customer = customerRepository.findByEmailIgnoreCase(email)
+        Customer customer = customerRepository
+                .findByEmailIgnoreCase(email)
                 .orElseThrow(() -> new ResponseStatusException(
-                        HttpStatus.UNAUTHORIZED, "Invalid email or password"));
+                        HttpStatus.UNAUTHORIZED,
+                        "Invalid email or password"));
 
         if (!passwordEncoder.matches(
-                request.password(), customer.getPasswordHash())) {
+                request.password(),
+                customer.getPasswordHash())) {
+
             throw new ResponseStatusException(
-                    HttpStatus.UNAUTHORIZED, "Invalid email or password");
+                    HttpStatus.UNAUTHORIZED,
+                    "Invalid email or password");
+        }
+
+        // Block inactive customers from logging in.
+        if (!customer.isActive()) {
+            throw new ResponseStatusException(
+                    HttpStatus.FORBIDDEN,
+                    "Your account has been blocked by Food Xpress Admin. Please contact support.");
         }
 
         String token = jwtService.generateToken(
@@ -98,12 +127,14 @@ public class CustomerService {
                 token);
     }
 
+    // =========================
+    // GET CUSTOMER PROFILE
+    // =========================
+
     @Transactional(readOnly = true)
     public CustomerProfileResponse getProfile(Long customerId) {
 
-        Customer customer = customerRepository.findById(customerId)
-                .orElseThrow(() -> new ResponseStatusException(
-                        HttpStatus.NOT_FOUND, "Customer profile not found."));
+        Customer customer = getActiveCustomer(customerId);
 
         return new CustomerProfileResponse(
                 customer.getId(),
@@ -112,13 +143,16 @@ public class CustomerService {
                 customer.getPhone());
     }
 
+    // =========================
+    // UPDATE CUSTOMER PROFILE
+    // =========================
+
     @Transactional
     public CustomerProfileResponse updateProfile(
-            Long customerId, CustomerProfileUpdateRequest request) {
+            Long customerId,
+            CustomerProfileUpdateRequest request) {
 
-        Customer customer = customerRepository.findById(customerId)
-                .orElseThrow(() -> new ResponseStatusException(
-                        HttpStatus.NOT_FOUND, "Customer profile not found."));
+        Customer customer = getActiveCustomer(customerId);
 
         customer.setName(request.name().trim());
         customer.setPhone(request.phone().trim());
@@ -130,5 +164,25 @@ public class CustomerService {
                 saved.getName(),
                 saved.getEmail(),
                 saved.getPhone());
+    }
+
+    // =========================
+    // GET ACTIVE CUSTOMER
+    // =========================
+
+    private Customer getActiveCustomer(Long customerId) {
+
+        Customer customer = customerRepository.findById(customerId)
+                .orElseThrow(() -> new ResponseStatusException(
+                        HttpStatus.NOT_FOUND,
+                        "Customer profile not found."));
+
+        if (!customer.isActive()) {
+            throw new ResponseStatusException(
+                    HttpStatus.FORBIDDEN,
+                    "Your account has been blocked by Food Xpress Admin. Please contact support.");
+        }
+
+        return customer;
     }
 }

@@ -1,3 +1,4 @@
+
 package com.example.FoodXpress_backend.service;
 
 import com.example.FoodXpress_backend.dto.RestaurantResponse;
@@ -38,7 +39,8 @@ public class RestaurantService {
                 restaurant.getRating(),
                 restaurant.getDeliveryTimeMinutes(),
                 restaurant.getImageUrl(),
-                restaurant.isFreeDelivery()
+                restaurant.isFreeDelivery(),
+                restaurant.getDeliveryCharge()
         );
     }
 }

@@ -21,6 +21,14 @@ public class OrderItem {
     @Column(name = "restaurant_name", nullable = false, length = 120)
     private String restaurantName;
 
+    /*
+     * Connect this order item to its actual restaurant.
+     * Nullable initially to avoid breaking existing order records.
+     */
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "restaurant_id")
+    private Restaurant restaurant;
+
     @Column(name = "unit_price", nullable = false)
     private double unitPrice;
 
@@ -36,6 +44,7 @@ public class OrderItem {
     public OrderItem() {
     }
 
+    // Existing constructor retained for compatibility.
     public OrderItem(
             String foodName,
             String restaurantName,
@@ -47,8 +56,30 @@ public class OrderItem {
         this.restaurantName = restaurantName;
         this.unitPrice = unitPrice;
         this.quantity = quantity;
-        this.subtotal = Math.round(unitPrice * quantity * 100.0) / 100.0;
+        this.subtotal = roundMoney(unitPrice * quantity);
         this.imageUrl = imageUrl;
+    }
+
+    // Constructor used when creating new orders with a restaurant association.
+    public OrderItem(
+            String foodName,
+            Restaurant restaurant,
+            double unitPrice,
+            int quantity,
+            String imageUrl) {
+
+        this.foodName = foodName;
+        this.restaurant = restaurant;
+        this.restaurantName =
+                restaurant != null ? restaurant.getName() : "Unknown Restaurant";
+        this.unitPrice = unitPrice;
+        this.quantity = quantity;
+        this.subtotal = roundMoney(unitPrice * quantity);
+        this.imageUrl = imageUrl;
+    }
+
+    private double roundMoney(double amount) {
+        return Math.round(amount * 100.0) / 100.0;
     }
 
     public Long getId() {
@@ -69,6 +100,10 @@ public class OrderItem {
 
     public String getRestaurantName() {
         return restaurantName;
+    }
+
+    public Restaurant getRestaurant() {
+        return restaurant;
     }
 
     public double getUnitPrice() {

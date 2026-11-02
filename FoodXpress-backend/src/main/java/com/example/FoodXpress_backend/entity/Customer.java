@@ -23,6 +23,13 @@ public class Customer {
     @Column(name = "password_hash", nullable = false)
     private String passwordHash;
 
+    @Column(
+        name = "is_active",
+        nullable = false,
+        columnDefinition = "boolean default true"
+    )
+    private boolean active = true;
+
     protected Customer() {
     }
 
@@ -31,13 +38,14 @@ public class Customer {
             String email,
             String phone,
             String passwordHash) {
+
         this.name = name;
         this.email = email;
         this.phone = phone;
         this.passwordHash = passwordHash;
+        this.active = true;
     }
 
-    // Getters
     public Long getId() {
         return id;
     }
@@ -58,7 +66,10 @@ public class Customer {
         return passwordHash;
     }
 
-    // Setters
+    public boolean isActive() {
+        return active;
+    }
+
     public void setName(String name) {
         this.name = name;
     }
@@ -69,5 +80,9 @@ public class Customer {
 
     public void setPasswordHash(String passwordHash) {
         this.passwordHash = passwordHash;
+    }
+
+    public void setActive(boolean active) {
+        this.active = active;
     }
 }

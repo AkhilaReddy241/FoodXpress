@@ -111,10 +111,162 @@ function CustomerHelp() {
   }, [search, selectedCategory]);
 
   return (
-    <div
-      className="min-vh-100"
-      style={{ backgroundColor: "#faf8ff" }}
-    >
+    <div className="customer-help-responsive min-vh-100" style={{ backgroundColor: "#faf8ff" }}>
+      <style>{`
+        .customer-help-responsive {
+          width: 100%;
+          min-width: 0;
+          overflow-x: hidden;
+        }
+
+        .customer-help-responsive main,
+        .customer-help-responsive section,
+        .customer-help-responsive article {
+          min-width: 0;
+        }
+
+        .customer-help-responsive input {
+          min-width: 0;
+        }
+
+        .customer-help-responsive article button {
+          width: 100%;
+          min-width: 0;
+        }
+
+        .customer-help-responsive article button > div {
+          min-width: 0;
+        }
+
+        .customer-help-responsive article button > div > div {
+          overflow-wrap: anywhere;
+        }
+
+        @media (max-width: 767.98px) {
+          .customer-help-responsive nav .container {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+          }
+
+          .customer-help-responsive nav .container > div {
+            width: 100%;
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+          }
+
+          .customer-help-responsive main {
+            padding-top: 24px !important;
+            padding-bottom: 24px !important;
+          }
+
+          .customer-help-responsive section {
+            max-width: 100%;
+          }
+
+          .customer-help-responsive .input-group {
+            width: 100%;
+          }
+        }
+
+        @media (max-width: 575.98px) {
+          .customer-help-responsive nav .container {
+            padding-left: 14px;
+            padding-right: 14px;
+          }
+
+          .customer-help-responsive nav .container > div {
+            gap: 6px;
+          }
+
+          .customer-help-responsive nav .btn {
+            font-size: 12px;
+            padding: 6px 10px;
+          }
+
+          .customer-help-responsive main {
+            padding-left: 12px;
+            padding-right: 12px;
+          }
+
+          .customer-help-responsive main > section:first-child {
+            padding: 20px !important;
+          }
+
+          .customer-help-responsive main > section:first-child h1 {
+            font-size: 30px !important;
+            line-height: 1.2;
+          }
+
+          .customer-help-responsive main > section:nth-child(2) {
+            padding: 16px !important;
+          }
+
+          .customer-help-responsive section > .d-flex {
+            gap: 6px;
+          }
+
+          .customer-help-responsive section > .d-flex button {
+            font-size: 12px;
+            padding: 6px 10px !important;
+          }
+
+          .customer-help-responsive article button {
+            padding: 14px !important;
+          }
+
+          .customer-help-responsive article button > div {
+            gap: 10px !important;
+          }
+
+          .customer-help-responsive article button > div > span:first-child {
+            width: 34px !important;
+            height: 34px !important;
+          }
+
+          .customer-help-responsive article button > div > span:last-child {
+            font-size: 21px;
+          }
+
+          .customer-help-responsive article .ms-md-5 {
+            margin-left: 44px !important;
+            padding-left: 0 !important;
+          }
+
+          .customer-help-responsive section:last-of-type {
+            padding: 20px !important;
+          }
+
+          .customer-help-responsive footer {
+            gap: 8px;
+          }
+        }
+
+        @media (max-width: 360px) {
+          .customer-help-responsive nav .btn {
+            font-size: 11px;
+            padding: 5px 8px;
+          }
+
+          .customer-help-responsive main > section:first-child {
+            padding: 16px !important;
+          }
+
+          .customer-help-responsive main > section:first-child h1 {
+            font-size: 26px !important;
+          }
+
+          .customer-help-responsive article button {
+            padding: 12px !important;
+          }
+
+          .customer-help-responsive article button > div {
+            gap: 8px !important;
+          }
+        }
+      `}</style>
+
       {/* NAVIGATION BAR */}
       <nav
         className="navbar navbar-expand-lg navbar-dark sticky-top"
@@ -127,7 +279,7 @@ function CustomerHelp() {
             to="/customer/home"
             className="navbar-brand fw-bold fs-4"
           >
-            🍽️ Food{" "}
+             ♨ Food{" "}
             <span style={{ color: "#d9a2ff" }}>Xpress</span>
           </Link>
 

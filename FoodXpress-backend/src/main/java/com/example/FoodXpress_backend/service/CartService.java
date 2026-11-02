@@ -6,14 +6,17 @@ import com.example.FoodXpress_backend.dto.CartItemResponse;
 import com.example.FoodXpress_backend.dto.CartResponse;
 import com.example.FoodXpress_backend.dto.CouponRequest;
 import com.example.FoodXpress_backend.dto.CouponResponse;
+import com.example.FoodXpress_backend.dto.CustomerCouponResponse;
 import com.example.FoodXpress_backend.dto.UpdateCartItemRequest;
 
 import com.example.FoodXpress_backend.entity.CartItem;
+import com.example.FoodXpress_backend.entity.Coupon;
 import com.example.FoodXpress_backend.entity.Customer;
 import com.example.FoodXpress_backend.entity.FoodItem;
 import com.example.FoodXpress_backend.entity.Restaurant;
 
 import com.example.FoodXpress_backend.repository.CartItemRepository;
+import com.example.FoodXpress_backend.repository.CouponRepository;
 import com.example.FoodXpress_backend.repository.CustomerRepository;
 import com.example.FoodXpress_backend.repository.FoodItemRepository;
 
@@ -22,6 +25,8 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
 
+import java.math.BigDecimal;
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Locale;
 
@@ -31,18 +36,24 @@ public class CartService {
     private final CartItemRepository cartItemRepository;
     private final CustomerRepository customerRepository;
     private final FoodItemRepository foodItemRepository;
+    private final CouponRepository couponRepository;
 
     public CartService(
             CartItemRepository cartItemRepository,
             CustomerRepository customerRepository,
-            FoodItemRepository foodItemRepository) {
+            FoodItemRepository foodItemRepository,
+            CouponRepository couponRepository) {
 
         this.cartItemRepository = cartItemRepository;
         this.customerRepository = customerRepository;
         this.foodItemRepository = foodItemRepository;
+        this.couponRepository = couponRepository;
     }
 
-    // Get the customer's cart and calculate its total.
+    // =====================================
+    // GET CUSTOMER CART
+    // =====================================
+
     @Transactional(readOnly = true)
     public CartResponse getCart(Long customerId) {
 
@@ -50,7 +61,7 @@ public class CartService {
                 cartItemRepository
                         .findByCustomer_IdOrderByIdAsc(customerId)
                         .stream()
-                        .map(item -> toResponse(item))
+                        .map(this::toResponse)
                         .toList();
 
         int totalQuantity = items.stream()
@@ -68,7 +79,44 @@ public class CartService {
         );
     }
 
-    // Add a food item to the customer's cart.
+    // =====================================
+    // GET AVAILABLE ADMIN COUPONS
+    // =====================================
+
+    @Transactional(readOnly = true)
+    public List<CustomerCouponResponse> getAvailableCoupons(Long customerId) {
+
+        if (!customerRepository.existsById(customerId)) {
+            throw new ResponseStatusException(
+                    HttpStatus.UNAUTHORIZED,
+                    "Customer account not found."
+            );
+        }
+
+        LocalDateTime now = LocalDateTime.now();
+
+        return couponRepository.findAvailableCoupons(now)
+                .stream()
+                .map(coupon -> new CustomerCouponResponse(
+                        coupon.getId(),
+                        coupon.getCode(),
+                        coupon.getDescription(),
+                        coupon.getDiscountType(),
+                        coupon.getDiscountValue(),
+                        coupon.getMinimumOrderAmount(),
+                        coupon.getMaximumDiscount(),
+                        coupon.getValidFrom(),
+                        coupon.getValidUntil(),
+                        coupon.getUsageLimit(),
+                        coupon.getUsedCount()
+                ))
+                .toList();
+    }
+
+    // =====================================
+    // ADD FOOD ITEM TO CART
+    // =====================================
+
     @Transactional
     public CartResponse addItem(
             Long customerId,
@@ -126,7 +174,10 @@ public class CartService {
         return getCart(customerId);
     }
 
-    // Update the quantity of a cart item.
+    // =====================================
+    // UPDATE CART ITEM QUANTITY
+    // =====================================
+
     @Transactional
     public CartResponse updateItem(
             Long customerId,
@@ -143,7 +194,10 @@ public class CartService {
         return getCart(customerId);
     }
 
-    // Remove one item from the cart.
+    // =====================================
+    // REMOVE CART ITEM
+    // =====================================
+
     @Transactional
     public CartResponse removeItem(
             Long customerId,
@@ -158,7 +212,10 @@ public class CartService {
         return getCart(customerId);
     }
 
-    // Remove every item from the customer's cart.
+    // =====================================
+    // CLEAR CART
+    // =====================================
+
     @Transactional
     public CartResponse clearCart(Long customerId) {
 
@@ -168,7 +225,10 @@ public class CartService {
         return getCart(customerId);
     }
 
-    // Find a cart item only if it belongs to this customer.
+    // =====================================
+    // FIND CUSTOMER CART ITEM
+    // =====================================
+
     private CartItem findCustomerCartItem(
             Long customerId,
             Long cartItemId) {
@@ -181,7 +241,10 @@ public class CartService {
                 ));
     }
 
-    // Convert the database entity into a response object.
+    // =====================================
+    // CONVERT CART ITEM TO RESPONSE
+    // =====================================
+
     private CartItemResponse toResponse(CartItem item) {
 
         FoodItem food = item.getFoodItem();
@@ -203,74 +266,143 @@ public class CartService {
         );
     }
 
-    // Validate a coupon using the customer's current database cart.
+    // =====================================
+    // APPLY DATABASE COUPON
+    // =====================================
+
     @Transactional(readOnly = true)
     public CouponResponse applyCoupon(
             Long customerId,
             CouponRequest request) {
 
+        if (request == null || request.code() == null
+                || request.code().isBlank()) {
+
+            throw new ResponseStatusException(
+                    HttpStatus.BAD_REQUEST,
+                    "Please enter a coupon code."
+            );
+        }
+
         CartResponse cart = getCart(customerId);
         double subtotal = cart.totalAmount();
+
+        if (subtotal <= 0) {
+            throw new ResponseStatusException(
+                    HttpStatus.BAD_REQUEST,
+                    "Add food items to your cart before applying a coupon."
+            );
+        }
 
         String code = request.code()
                 .trim()
                 .toUpperCase(Locale.ROOT);
 
-        double discount;
+        Coupon coupon = couponRepository
+                .findByCodeIgnoreCase(code)
+                .orElseThrow(() -> new ResponseStatusException(
+                        HttpStatus.BAD_REQUEST,
+                        "Invalid coupon code."
+                ));
 
-        switch (code) {
+        LocalDateTime now = LocalDateTime.now();
 
-            case "FOOD10" -> {
-                if (subtotal < 299) {
-                    throw new ResponseStatusException(
-                            HttpStatus.BAD_REQUEST,
-                            "FOOD10 requires a minimum order of Rs. 299."
-                    );
-                }
-
-                discount = Math.min(subtotal * 0.10, 100);
-            }
-
-            case "SAVE50" -> {
-                if (subtotal < 499) {
-                    throw new ResponseStatusException(
-                            HttpStatus.BAD_REQUEST,
-                            "SAVE50 requires a minimum order of Rs. 499."
-                    );
-                }
-
-                discount = 50;
-            }
-
-            case "WELCOME15" -> {
-                if (subtotal < 699) {
-                    throw new ResponseStatusException(
-                            HttpStatus.BAD_REQUEST,
-                            "WELCOME15 requires a minimum order of Rs. 699."
-                    );
-                }
-
-                discount = Math.min(subtotal * 0.15, 150);
-            }
-
-            case "XPRESS20" -> {
-                if (subtotal < 999) {
-                    throw new ResponseStatusException(
-                            HttpStatus.BAD_REQUEST,
-                            "XPRESS20 requires a minimum order of Rs. 999."
-                    );
-                }
-
-                discount = Math.min(subtotal * 0.20, 200);
-            }
-
-            default -> throw new ResponseStatusException(
+        if (!coupon.isActive()) {
+            throw new ResponseStatusException(
                     HttpStatus.BAD_REQUEST,
-                    "Invalid coupon code."
+                    "This coupon is currently inactive."
             );
         }
 
-        discount = roundMoney(discount);
+        if (coupon.getValidFrom() != null
+                && now.isBefore(coupon.getValidFrom())) {
+
+            throw new ResponseStatusException(
+                    HttpStatus.BAD_REQUEST,
+                    "This coupon is not valid yet."
+            );
+        }
+
+        if (coupon.getValidUntil() != null
+                && now.isAfter(coupon.getValidUntil())) {
+
+            throw new ResponseStatusException(
+                    HttpStatus.BAD_REQUEST,
+                    "This coupon has expired."
+            );
+        }
+
+        if (coupon.getUsageLimit() != null
+                && coupon.getUsedCount() >= coupon.getUsageLimit()) {
+
+            throw new ResponseStatusException(
+                    HttpStatus.BAD_REQUEST,
+                    "This coupon has reached its usage limit."
+            );
+        }
+
+        BigDecimal minimumAmount = coupon.getMinimumOrderAmount();
+
+        double minimumOrder = minimumAmount == null
+                ? 0.0
+                : minimumAmount.doubleValue();
+
+        if (subtotal < minimumOrder) {
+            throw new ResponseStatusException(
+                    HttpStatus.BAD_REQUEST,
+                    "Minimum order amount for " + code + " is Rs. "
+                            + roundMoney(minimumOrder) + "."
+            );
+        }
+
+        if (coupon.getDiscountValue() == null
+                || coupon.getDiscountValue().compareTo(BigDecimal.ZERO) <= 0) {
+
+            throw new ResponseStatusException(
+                    HttpStatus.BAD_REQUEST,
+                    "This coupon has an invalid discount value."
+            );
+        }
+
+        double discountValue = coupon.getDiscountValue().doubleValue();
+        double discount;
+
+        String discountType = coupon.getDiscountType()
+                .trim()
+                .toUpperCase(Locale.ROOT);
+
+        if ("PERCENTAGE".equals(discountType)) {
+
+            if (discountValue > 100) {
+                throw new ResponseStatusException(
+                        HttpStatus.BAD_REQUEST,
+                        "Invalid percentage discount."
+                );
+            }
+
+            discount = subtotal * discountValue / 100.0;
+
+            if (coupon.getMaximumDiscount() != null) {
+                discount = Math.min(
+                        discount,
+                        coupon.getMaximumDiscount().doubleValue()
+                );
+            }
+
+        } else if ("FIXED".equals(discountType)) {
+
+            discount = discountValue;
+
+        } else {
+
+            throw new ResponseStatusException(
+                    HttpStatus.BAD_REQUEST,
+                    "Unsupported coupon discount type."
+            );
+        }
+
+        discount = roundMoney(Math.min(discount, subtotal));
+
         double finalTotal = roundMoney(subtotal - discount);
 
         return new CouponResponse(
@@ -281,6 +413,36 @@ public class CartService {
                 "Coupon applied successfully."
         );
     }
+
+    // =====================================
+    // RECORD SUCCESSFUL COUPON USAGE
+    // =====================================
+
+    @Transactional
+    public void recordCouponUsage(String code) {
+
+        if (code == null || code.isBlank()) {
+            return;
+        }
+
+        Coupon coupon = couponRepository
+                .findByCodeIgnoreCaseForUpdate(code.trim())
+                .orElse(null);
+
+        // An Admin may have removed the coupon after an order was placed.
+        // Do not prevent an already-paid order from being confirmed.
+        if (coupon == null) {
+            return;
+        }
+
+        coupon.setUsedCount(coupon.getUsedCount() + 1);
+
+        couponRepository.save(coupon);
+    }
+
+    // =====================================
+    // ROUND MONEY
+    // =====================================
 
     private double roundMoney(double amount) {
         return Math.round(amount * 100.0) / 100.0;

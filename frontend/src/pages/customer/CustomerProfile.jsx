@@ -1,6 +1,8 @@
-
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
+
+const PURPLE = "#641bc2";
+const DARK = "#351078";
 
 function CustomerProfile() {
   const navigate = useNavigate();
@@ -33,8 +35,12 @@ function CustomerProfile() {
       }
 
       try {
+        const API_URL = import.meta.env.DEV
+          ? "http://localhost:8080"
+          : "https://foodxpress-fmpb.onrender.com";
+
         const response = await fetch(
-          "https://foodxpress-fmpb.onrender.com/api/customers/profile",
+          `${API_URL}/api/customers/profile`,
           {
             method: "GET",
             headers: {
@@ -123,15 +129,17 @@ function CustomerProfile() {
     setSaving(true);
 
     try {
+      const API_URL = import.meta.env.DEV
+        ? "http://localhost:8080"
+        : "https://foodxpress-fmpb.onrender.com";
+
       const response = await fetch(
-        "https://foodxpress-fmpb.onrender.com/api/customers/profile",
+        `${API_URL}/api/customers/profile`,
         {
-          method: "PUT",
+          method: "GET",
           headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${currentToken}`,
+            Authorization: `Bearer ${token}`,
           },
-          body: JSON.stringify({ name, phone }),
         }
       );
 
@@ -202,12 +210,16 @@ function CustomerProfile() {
     }
 
     try {
+      const API_URL = import.meta.env.DEV
+        ? "http://localhost:8080"
+        : "https://foodxpress-fmpb.onrender.com";
+
       const response = await fetch(
-        "https://foodxpress-fmpb.onrender.com/api/customers/profile",
+        `${API_URL}/api/customers/profile`,
         {
           method: "GET",
           headers: {
-            Authorization: `Bearer ${currentToken}`,
+            Authorization: `Bearer ${token}`,
           },
         }
       );
@@ -249,14 +261,90 @@ function CustomerProfile() {
   };
 
   return (
-    <div className="min-vh-100 bg-light">
-      <nav className="navbar navbar-dark bg-primary px-3 px-md-5 py-3">
+    <div className="customer-profile-responsive min-vh-100 bg-light">
+      <style>{`
+        .customer-profile-responsive {
+          width: 100%;
+          min-width: 0;
+          overflow-x: hidden;
+        }
+
+        @media (max-width: 767px) {
+          .customer-profile-responsive nav {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+          }
+
+          .customer-profile-responsive nav > div {
+            display: flex;
+            flex-wrap: wrap;
+            width: 100%;
+            gap: 8px;
+          }
+
+          .customer-profile-responsive main {
+            padding-top: 25px;
+            padding-bottom: 25px;
+          }
+
+          .customer-profile-responsive .card {
+            width: 100%;
+          }
+        }
+
+        @media (max-width: 480px) {
+          .customer-profile-responsive nav {
+            padding-left: 14px;
+            padding-right: 14px;
+          }
+
+          .customer-profile-responsive nav > div {
+            gap: 6px;
+          }
+
+          .customer-profile-responsive nav .btn {
+            font-size: 12px;
+            padding: 6px 8px;
+          }
+
+          .customer-profile-responsive .card-body {
+            padding: 20px !important;
+          }
+
+          .customer-profile-responsive form > .d-flex {
+            flex-wrap: wrap;
+          }
+
+          .customer-profile-responsive form > .d-flex button {
+            flex: 1 1 120px;
+          }
+        }
+
+        @media (max-width: 340px) {
+          .customer-profile-responsive nav .btn {
+            font-size: 11px;
+            padding: 5px 6px;
+          }
+
+          .customer-profile-responsive .card-body {
+            padding: 15px !important;
+          }
+        }
+      `}</style>
+
+      <nav
+        className="navbar navbar-dark px-3 px-md-5 py-3"
+        style={{
+          background: `linear-gradient(105deg, ${PURPLE}, ${DARK})`,
+        }}
+      >
         <span
           className="navbar-brand fw-bold"
           role="button"
           onClick={() => navigate("/customer/home")}
         >
-           ♨  Food Xpress
+          ♨  Food Xpress
         </span>
 
         <div className="d-flex gap-2">

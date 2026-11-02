@@ -1,3 +1,4 @@
+
 package com.example.FoodXpress_backend.dto;
 
 public record RestaurantResponse(
@@ -8,6 +9,7 @@ public record RestaurantResponse(
         double rating,
         int deliveryTimeMinutes,
         String imageUrl,
-        boolean freeDelivery
+        boolean freeDelivery,
+        double deliveryCharge
 ) {
 }
