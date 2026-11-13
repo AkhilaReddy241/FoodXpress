@@ -1,15 +1,12 @@
-
 package com.example.FoodXpress_backend.controller;
 
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.core.Authentication;
-import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RequestParam;
-import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 import org.springframework.web.server.ResponseStatusException;
 
@@ -32,6 +29,9 @@ public class FoodImageController {
             "image/png",
             "image/webp"
     );
+
+    @Value("${foodxpress.upload-dir:uploads}")
+    private String uploadDirectory;
 
     @PostMapping(
             value = "/upload-image",
@@ -81,18 +81,23 @@ public class FoodImageController {
             );
         };
 
-        Path uploadDirectory = Paths.get(
-                System.getProperty("user.dir"),
-                "uploads",
-                "food-images"
-        ).toAbsolutePath().normalize();
+        Path baseDirectory = Paths.get(uploadDirectory)
+                .toAbsolutePath()
+                .normalize();
 
-        Files.createDirectories(uploadDirectory);
+        Path foodImageDirectory = baseDirectory
+                .resolve("food-images")
+                .normalize();
+
+        Files.createDirectories(foodImageDirectory);
 
         String fileName = UUID.randomUUID() + extension;
-        Path destination = uploadDirectory.resolve(fileName).normalize();
 
-        if (!destination.startsWith(uploadDirectory)) {
+        Path destination = foodImageDirectory
+                .resolve(fileName)
+                .normalize();
+
+        if (!destination.startsWith(foodImageDirectory)) {
             throw new ResponseStatusException(
                     HttpStatus.BAD_REQUEST,
                     "Invalid image filename."
@@ -103,6 +108,8 @@ public class FoodImageController {
 
         String imageUrl = "/uploads/food-images/" + fileName;
 
-        return ResponseEntity.ok(Map.of("imageUrl", imageUrl));
+        return ResponseEntity.ok(
+                Map.of("imageUrl", imageUrl)
+        );
     }
 }

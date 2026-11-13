@@ -13,20 +13,24 @@ import java.util.List;
 
 public interface FoodItemRepository extends JpaRepository<FoodItem, Long> {
 
-    // Customer: fetch only available food items.
+    // ---------------------------------------------------------
+    // RESTAURANT MENU
+    // ---------------------------------------------------------
+
     List<FoodItem> findByRestaurant_IdAndAvailableTrueOrderByIdAsc(
             Long restaurantId
     );
 
-    // Restaurant management: fetch all food items.
     List<FoodItem> findByRestaurant_IdOrderByIdAsc(
             Long restaurantId
     );
 
-    // Count food items using a category.
+    // ---------------------------------------------------------
+    // ADMIN / CATEGORY
+    // ---------------------------------------------------------
+
     long countByCategoryIgnoreCase(String category);
 
-    // Get existing category names from food items.
     @Query("""
         SELECT DISTINCT f.category
         FROM FoodItem f
@@ -36,7 +40,6 @@ public interface FoodItemRepository extends JpaRepository<FoodItem, Long> {
         """)
     List<String> findDistinctCategories();
 
-    // Update existing food items when an admin renames a category.
     @Modifying(clearAutomatically = true, flushAutomatically = true)
     @Transactional
     @Query("""
@@ -47,5 +50,27 @@ public interface FoodItemRepository extends JpaRepository<FoodItem, Long> {
     int updateCategoryName(
             @Param("oldName") String oldName,
             @Param("newName") String newName
+    );
+
+    // ---------------------------------------------------------
+    // CHATBOT FOOD SEARCH
+    // ---------------------------------------------------------
+
+    @Query("""
+        SELECT f
+        FROM FoodItem f
+        JOIN FETCH f.restaurant r
+        WHERE f.available = true
+          AND r.active = true
+          AND r.approvalStatus = 'APPROVED'
+          AND (
+                LOWER(f.name) LIKE LOWER(CONCAT('%', :query, '%'))
+                OR LOWER(f.description) LIKE LOWER(CONCAT('%', :query, '%'))
+                OR LOWER(f.category) LIKE LOWER(CONCAT('%', :query, '%'))
+              )
+        ORDER BY f.id ASC
+        """)
+    List<FoodItem> searchAvailableFood(
+            @Param("query") String query
     );
 }

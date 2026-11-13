@@ -338,6 +338,70 @@ public class RazorpayPaymentService {
         return refunds;
     }
 
+    // Get the latest refund from Razorpay.
+    //
+    // Razorpay can return more than one refund for a payment.
+    // The refund with the latest created_at value is treated
+    // as the latest refund.
+    public Refund fetchLatestRefund(
+            CustomerOrder order) throws RazorpayException {
+
+        List<Refund> refunds = fetchExistingRefunds(order);
+
+        if (refunds == null || refunds.isEmpty()) {
+            return null;
+        }
+
+        Refund latestRefund = refunds.get(0);
+
+        long latestCreatedAt = getCreatedAt(latestRefund);
+
+        for (Refund refund : refunds) {
+
+            long createdAt = getCreatedAt(refund);
+
+            if (createdAt > latestCreatedAt) {
+                latestRefund = refund;
+                latestCreatedAt = createdAt;
+            }
+        }
+
+        Object refundIdValue = latestRefund.get("id");
+        Object refundStatusValue = latestRefund.get("status");
+
+        log.info(
+                "Latest Razorpay refund for Food Xpress order #{}: "
+                        + "id={}, status={}",
+                order.getId(),
+                valueAsString(refundIdValue),
+                valueAsString(refundStatusValue)
+        );
+
+        return latestRefund;
+    }
+
+    // Safely read Razorpay's created_at timestamp.
+    private long getCreatedAt(Refund refund) {
+
+        if (refund == null) {
+            return 0L;
+        }
+
+        Object createdAtValue = refund.get("created_at");
+
+        if (createdAtValue == null) {
+            return 0L;
+        }
+
+        try {
+            return Long.parseLong(
+                    createdAtValue.toString()
+            );
+        } catch (NumberFormatException exception) {
+            return 0L;
+        }
+    }
+
     // Submit a full refund for a captured Razorpay payment.
     public Refund refundPayment(
             CustomerOrder order) throws RazorpayException {

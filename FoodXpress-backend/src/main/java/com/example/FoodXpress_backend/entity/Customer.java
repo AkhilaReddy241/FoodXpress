@@ -1,10 +1,17 @@
-
 package com.example.FoodXpress_backend.entity;
 
 import jakarta.persistence.*;
 
 @Entity
-@Table(name = "customers")
+@Table(
+    name = "customers",
+    uniqueConstraints = {
+        @UniqueConstraint(
+            name = "uk_customers_google_id",
+            columnNames = "google_id"
+        )
+    }
+)
 public class Customer {
 
     @Id
@@ -20,8 +27,18 @@ public class Customer {
     @Column(nullable = false, length = 10)
     private String phone;
 
-    @Column(name = "password_hash", nullable = false)
+    @Column(
+        name = "password_hash",
+        nullable = true
+    )
     private String passwordHash;
+
+    @Column(
+        name = "google_id",
+        unique = true,
+        length = 255
+    )
+    private String googleId;
 
     @Column(
         name = "is_active",
@@ -66,6 +83,10 @@ public class Customer {
         return passwordHash;
     }
 
+    public String getGoogleId() {
+        return googleId;
+    }
+
     public boolean isActive() {
         return active;
     }
@@ -80,6 +101,10 @@ public class Customer {
 
     public void setPasswordHash(String passwordHash) {
         this.passwordHash = passwordHash;
+    }
+
+    public void setGoogleId(String googleId) {
+        this.googleId = googleId;
     }
 
     public void setActive(boolean active) {

@@ -1,4 +1,3 @@
-
 package com.example.FoodXpress_backend.service;
 
 import com.example.FoodXpress_backend.dto.RestaurantOwnerAuthResponse;
@@ -25,17 +24,20 @@ public class RestaurantOwnerService {
     private final RestaurantRepository restaurantRepository;
     private final PasswordEncoder passwordEncoder;
     private final JwtService jwtService;
+    private final EmailService emailService;
 
     public RestaurantOwnerService(
             RestaurantOwnerRepository ownerRepository,
             RestaurantRepository restaurantRepository,
             PasswordEncoder passwordEncoder,
-            JwtService jwtService) {
+            JwtService jwtService,
+            EmailService emailService) {
 
         this.ownerRepository = ownerRepository;
         this.restaurantRepository = restaurantRepository;
         this.passwordEncoder = passwordEncoder;
         this.jwtService = jwtService;
+        this.emailService = emailService;
     }
 
     // =========================
@@ -97,11 +99,25 @@ public class RestaurantOwnerService {
         owner.setEmail(email);
         owner.setPhone(phone);
         owner.setAddress(address);
+
+        // Save separate address fields if supplied.
+        owner.setStreet(trimToNull(request.getStreet()));
+        owner.setCity(trimToNull(request.getCity()));
+        owner.setState(trimToNull(request.getState()));
+        owner.setPincode(trimToNull(request.getPincode()));
+
         owner.setCuisine(cuisine);
         owner.setPassword(passwordEncoder.encode(password));
         owner.setActive(true);
 
-        RestaurantOwner savedOwner = ownerRepository.save(owner);
+        // Save opening information.
+        owner.setOpeningTime(trimToNull(request.getOpeningTime()));
+        owner.setClosingTime(trimToNull(request.getClosingTime()));
+        owner.setOpeningHours(trimToNull(request.getOpeningHours()));
+        owner.setOpen(request.isOpen());
+
+        RestaurantOwner savedOwner =
+                ownerRepository.save(owner);
 
         // New restaurants must wait for Admin approval.
         Restaurant restaurant = new Restaurant(
@@ -128,7 +144,35 @@ public class RestaurantOwnerService {
 
         restaurant.setRestaurantOwner(savedOwner);
 
+        // Save restaurant map location.
+        restaurant.setLatitude(request.getLatitude());
+        restaurant.setLongitude(request.getLongitude());
+
         restaurantRepository.save(restaurant);
+
+        // =====================================================
+        // SEND NEW RESTAURANT APPROVAL REQUEST TO ADMIN
+        // =====================================================
+
+        try {
+
+            emailService.sendNewRestaurantRegistrationEmail(
+                    restaurantName,
+                    email,
+                    phone,
+                    cuisine
+            );
+
+        } catch (Exception e) {
+
+            // Do not cancel a successful registration just
+            // because the email service is temporarily unavailable.
+            System.err.println(
+                    "Restaurant registered successfully, "
+                    + "but admin notification email could not be sent: "
+                    + e.getMessage()
+            );
+        }
 
         String token = jwtService.generateRestaurantOwnerToken(
                 savedOwner.getId(),
@@ -168,7 +212,8 @@ public class RestaurantOwnerService {
                                 "Invalid email or password."));
 
         if (!passwordEncoder.matches(
-                request.getPassword(), owner.getPassword())) {
+                request.getPassword(),
+                owner.getPassword())) {
 
             throw new IllegalArgumentException(
                     "Invalid email or password.");
@@ -226,9 +271,14 @@ public class RestaurantOwnerService {
         String restaurantName =
                 required(request.getRestaurantName(), "Restaurant name");
 
-        String phone = required(request.getPhone(), "Phone");
-        String address = required(request.getAddress(), "Address");
-        String cuisine = required(request.getCuisine(), "Cuisine");
+        String phone =
+                required(request.getPhone(), "Phone");
+
+        String address =
+                required(request.getAddress(), "Address");
+
+        String cuisine =
+                required(request.getCuisine(), "Cuisine");
 
         if (request.getDeliveryTimeMinutes() < 1) {
             throw new IllegalArgumentException(
@@ -245,15 +295,35 @@ public class RestaurantOwnerService {
                     "Rating must be between 0 and 5.");
         }
 
-        // Update owner details.
+        // =========================
+        // UPDATE OWNER DETAILS
+        // =========================
+
         owner.setRestaurantName(restaurantName);
         owner.setPhone(phone);
         owner.setAddress(address);
+
+        // Save separate address fields.
+        owner.setStreet(trimToNull(request.getStreet()));
+        owner.setCity(trimToNull(request.getCity()));
+        owner.setState(trimToNull(request.getState()));
+        owner.setPincode(trimToNull(request.getPincode()));
+
         owner.setCuisine(cuisine);
 
-        RestaurantOwner savedOwner = ownerRepository.save(owner);
+        // Save opening information.
+        owner.setOpeningTime(trimToNull(request.getOpeningTime()));
+        owner.setClosingTime(trimToNull(request.getClosingTime()));
+        owner.setOpeningHours(trimToNull(request.getOpeningHours()));
+        owner.setOpen(request.isOpen());
 
-        // Update restaurant details.
+        RestaurantOwner savedOwner =
+                ownerRepository.save(owner);
+
+        // =========================
+        // UPDATE RESTAURANT DETAILS
+        // =========================
+
         restaurant.setName(restaurantName);
         restaurant.setCuisine(cuisine);
 
@@ -270,19 +340,30 @@ public class RestaurantOwnerService {
         restaurant.setDeliveryTimeMinutes(
                 request.getDeliveryTimeMinutes());
 
-        restaurant.setFreeDelivery(request.isFreeDelivery());
+        restaurant.setFreeDelivery(
+                request.isFreeDelivery());
 
         restaurant.setDeliveryCharge(
                 request.isFreeDelivery()
                         ? 0.0
                         : request.getDeliveryCharge());
 
-        restaurant.setRating(request.getRating());
+        restaurant.setRating(
+                request.getRating());
+
+        // =========================
+        // UPDATE RESTAURANT MAP LOCATION
+        // =========================
+
+        restaurant.setLatitude(request.getLatitude());
+        restaurant.setLongitude(request.getLongitude());
 
         Restaurant savedRestaurant =
                 restaurantRepository.save(restaurant);
 
-        return toProfileResponse(savedOwner, savedRestaurant);
+        return toProfileResponse(
+                savedOwner,
+                savedRestaurant);
     }
 
     // =========================
@@ -328,17 +409,40 @@ public class RestaurantOwnerService {
                 owner.getRestaurantName(),
                 owner.getEmail(),
                 owner.getPhone(),
+
+                // Main address
                 owner.getAddress(),
+
+                // Separate address fields
+                owner.getStreet(),
+                owner.getCity(),
+                owner.getState(),
+                owner.getPincode(),
+
                 owner.getCuisine(),
+
                 owner.isActive(),
+
                 restaurant.getApprovalStatus(),
                 restaurant.isActive(),
+
                 restaurant.getDescription(),
                 restaurant.getImageUrl(),
+
                 restaurant.getDeliveryTimeMinutes(),
                 restaurant.getDeliveryCharge(),
                 restaurant.isFreeDelivery(),
-                restaurant.getRating()
+                restaurant.getRating(),
+
+                // Opening information
+                owner.getOpeningTime(),
+                owner.getClosingTime(),
+                owner.getOpeningHours(),
+                owner.isOpen(),
+
+                // Restaurant map location
+                restaurant.getLatitude(),
+                restaurant.getLongitude()
         );
     }
 
@@ -360,11 +464,26 @@ public class RestaurantOwnerService {
     // VALIDATE REQUIRED FIELDS
     // =========================
 
-    private String required(String value, String fieldName) {
+    private String required(
+            String value,
+            String fieldName) {
 
         if (value == null || value.isBlank()) {
             throw new IllegalArgumentException(
                     fieldName + " is required.");
+        }
+
+        return value.trim();
+    }
+
+    // =========================
+    // CONVERT BLANK TO NULL
+    // =========================
+
+    private String trimToNull(String value) {
+
+        if (value == null || value.isBlank()) {
+            return null;
         }
 
         return value.trim();

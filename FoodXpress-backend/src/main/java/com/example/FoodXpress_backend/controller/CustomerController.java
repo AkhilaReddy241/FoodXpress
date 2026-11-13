@@ -1,4 +1,3 @@
-
 package com.example.FoodXpress_backend.controller;
 
 import com.example.FoodXpress_backend.dto.CustomerLoginRequest;
@@ -12,6 +11,7 @@ import com.example.FoodXpress_backend.dto.VerifyResetOtpRequest;
 import com.example.FoodXpress_backend.dto.ResetPasswordRequest;
 import com.example.FoodXpress_backend.service.CustomerService;
 import com.example.FoodXpress_backend.service.PasswordResetService;
+import com.example.FoodXpress_backend.service.GoogleAuthService;
 
 import jakarta.validation.Valid;
 
@@ -31,12 +31,16 @@ public class CustomerController {
 
     private final CustomerService customerService;
     private final PasswordResetService passwordResetService;
+    private final GoogleAuthService googleAuthService;
 
     public CustomerController(
             CustomerService customerService,
-            PasswordResetService passwordResetService) {
+            PasswordResetService passwordResetService,
+            GoogleAuthService googleAuthService) {
+
         this.customerService = customerService;
         this.passwordResetService = passwordResetService;
+        this.googleAuthService = googleAuthService;
     }
 
     @PostMapping("/register")
@@ -46,7 +50,9 @@ public class CustomerController {
         CustomerRegisterResponse response =
                 customerService.register(request);
 
-        return ResponseEntity.status(HttpStatus.CREATED).body(response);
+        return ResponseEntity
+                .status(HttpStatus.CREATED)
+                .body(response);
     }
 
     @PostMapping("/login")
@@ -56,11 +62,39 @@ public class CustomerController {
         return customerService.login(request);
     }
 
+    /*
+     * Google Customer Login
+     *
+     * The React frontend sends the Google ID token.
+     * The backend verifies that token with Google,
+     * finds or creates the Food Xpress customer,
+     * and returns the normal Food Xpress JWT.
+     */
+    @PostMapping("/google-login")
+    public CustomerLoginResponse googleLogin(
+            @RequestBody GoogleLoginRequest request) {
+
+        if (request == null
+                || request.googleIdToken() == null
+                || request.googleIdToken().isBlank()) {
+
+            throw new IllegalArgumentException(
+                    "Google ID token is required."
+            );
+        }
+
+        return googleAuthService.loginCustomerWithGoogle(
+                request.googleIdToken()
+        );
+    }
+
     @GetMapping("/profile")
     public CustomerProfileResponse getProfile(
             Authentication authentication) {
 
-        Long customerId = getCustomerId(authentication);
+        Long customerId =
+                getCustomerId(authentication);
+
         return customerService.getProfile(customerId);
     }
 
@@ -69,8 +103,13 @@ public class CustomerController {
             @Valid @RequestBody CustomerProfileUpdateRequest request,
             Authentication authentication) {
 
-        Long customerId = getCustomerId(authentication);
-        return customerService.updateProfile(customerId, request);
+        Long customerId =
+                getCustomerId(authentication);
+
+        return customerService.updateProfile(
+                customerId,
+                request
+        );
     }
 
     @PostMapping("/logout")
@@ -84,7 +123,10 @@ public class CustomerController {
             @Valid @RequestBody ForgotPasswordRequest request) {
 
         return ResponseEntity.ok(
-                passwordResetService.sendOtp(request.email()));
+                passwordResetService.sendOtp(
+                        request.email()
+                )
+        );
     }
 
     // Verify the OTP.
@@ -94,7 +136,10 @@ public class CustomerController {
 
         return ResponseEntity.ok(
                 passwordResetService.verifyOtp(
-                        request.email(), request.otp()));
+                        request.email(),
+                        request.otp()
+                )
+        );
     }
 
     // Reset the password after validating the OTP.
@@ -106,20 +151,34 @@ public class CustomerController {
                 passwordResetService.resetPassword(
                         request.email(),
                         request.otp(),
-                        request.newPassword()));
+                        request.newPassword()
+                )
+        );
     }
 
-    private Long getCustomerId(Authentication authentication) {
+    private Long getCustomerId(
+            Authentication authentication) {
 
         if (authentication != null
                 && authentication.isAuthenticated()
-                && authentication.getPrincipal() instanceof Number number) {
+                && authentication.getPrincipal()
+                        instanceof Number number) {
 
             return number.longValue();
         }
 
-        throw new org.springframework.web.server.ResponseStatusException(
-                HttpStatus.UNAUTHORIZED,
-                "Please log in first.");
+        throw new org.springframework.web.server
+                .ResponseStatusException(
+                        HttpStatus.UNAUTHORIZED,
+                        "Please log in first."
+                );
+    }
+
+    /*
+     * Small request DTO for Google login.
+     */
+    public record GoogleLoginRequest(
+            String googleIdToken
+    ) {
     }
 }

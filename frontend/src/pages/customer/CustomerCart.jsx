@@ -1,4 +1,3 @@
-
 import { useCallback, useEffect, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 
@@ -28,6 +27,25 @@ const formatPrice = (amount) =>
     currency: "INR",
     maximumFractionDigits: 2,
   });
+
+// Convert relative image paths into backend URLs.
+const getFoodImageUrl = (imageUrl) => {
+  if (!imageUrl || typeof imageUrl !== "string") return "";
+
+  const image = imageUrl.trim();
+
+  if (!image) return "";
+
+  if (/^https?:\/\//i.test(image)) {
+    return image;
+  }
+
+  if (image.startsWith("//")) {
+    return `${window.location.protocol}${image}`;
+  }
+
+  return `${API_URL}${image.startsWith("/") ? "" : "/"}${image}`;
+};
 
 async function parseResponse(response) {
   const text = await response.text();
@@ -694,8 +712,6 @@ function CustomerCart() {
     setPlacedOrderId(null);
 
     let createdOrderId = null;
-
-    // Keeps the checkout button disabled while Razorpay is open.
     let paymentWindowOpened = false;
 
     try {
@@ -729,10 +745,7 @@ function CustomerCart() {
 
       setPlacedOrderId(createdOrderId);
 
-      // =====================================
       // CASH ON DELIVERY
-      // =====================================
-
       if (paymentMethod === "COD") {
         setCart(EMPTY_CART);
         clearCouponState();
@@ -747,10 +760,7 @@ function CustomerCart() {
         return;
       }
 
-      // =====================================
       // LOAD RAZORPAY SCRIPT
-      // =====================================
-
       const sdkLoaded = await loadRazorpayScript();
 
       if (!sdkLoaded) {
@@ -767,10 +777,7 @@ function CustomerCart() {
         );
       }
 
-      // =====================================
       // CREATE RAZORPAY ORDER
-      // =====================================
-
       const razorpayResponse = await fetch(
         `${API_URL}/api/orders/${encodeURIComponent(createdOrderId)}/razorpay-order`,
         {
@@ -805,10 +812,7 @@ function CustomerCart() {
         );
       }
 
-      // =====================================
       // OPEN RAZORPAY CHECKOUT
-      // =====================================
-
       const checkout = new window.Razorpay({
         key: razorpayOrder.keyId,
         amount: razorpayOrder.amount,
@@ -816,6 +820,14 @@ function CustomerCart() {
         name: "Food Xpress",
         description: `Payment for Food Xpress order #${createdOrderId}`,
         order_id: razorpayOrder.razorpayOrderId,
+
+        // ENABLE ALL MAIN RAZORPAY PAYMENT METHODS
+        method: {
+          card: true,
+          netbanking: true,
+          upi: true,
+          wallet: true,
+        },
 
         theme: {
           color: PURPLE,
@@ -826,10 +838,7 @@ function CustomerCart() {
           email: customerEmail,
         },
 
-        // =====================================
         // PAYMENT SUCCESS HANDLER
-        // =====================================
-
         handler: async (checkoutResult) => {
           try {
             const verificationToken = getToken();
@@ -838,7 +847,6 @@ function CustomerCart() {
               setError(
                 "Payment was submitted, but your session is missing. Sign in and verify the order status before retrying."
               );
-
               return;
             }
 
@@ -877,10 +885,6 @@ function CustomerCart() {
               );
             }
 
-            // =====================================
-            // CLEAR CART ONLY AFTER PAYMENT SUCCESS
-            // =====================================
-
             setCart(EMPTY_CART);
             clearCouponState();
             notifyCartUpdated();
@@ -893,9 +897,7 @@ function CustomerCart() {
 
             setPlacedOrderId(createdOrderId);
 
-            // Refresh coupon usage after verified payment.
             await loadAvailableCoupons();
-
           } catch (err) {
             setError(
               err.message ||
@@ -906,10 +908,7 @@ function CustomerCart() {
           }
         },
 
-        // =====================================
         // PAYMENT WINDOW CLOSED
-        // =====================================
-
         modal: {
           ondismiss: () => {
             setCheckingOut(false);
@@ -921,10 +920,6 @@ function CustomerCart() {
         },
       });
 
-      // =====================================
-      // PAYMENT FAILURE EVENT
-      // =====================================
-
       checkout.on("payment.failed", () => {
         setError(
           `Payment for order #${createdOrderId} was not completed. Check My Orders before retrying.`
@@ -934,26 +929,17 @@ function CustomerCart() {
       });
 
       checkout.open();
-
-      // Razorpay is now open. Do not unlock the checkout button
-      // from the outer finally block.
       paymentWindowOpened = true;
-
     } catch (err) {
       setError(err.message || "Unable to complete checkout.");
     } finally {
-      // Keep the button disabled while Razorpay is open.
-      // The Razorpay callbacks unlock it after payment finishes.
       if (!paymentWindowOpened) {
         setCheckingOut(false);
       }
     }
   };
 
-  // =====================================
   // SERVER-CALCULATED DISCOUNT
-  // =====================================
-
   const discountAmount =
     appliedCoupon && couponDetails
       ? Number(couponDetails.discountAmount || 0)
@@ -977,7 +963,6 @@ function CustomerCart() {
         overflowX: "hidden",
       }}
     >
-      {/* RESPONSIVE CSS ONLY */}
       <style>{`
         .customer-cart-page {
           box-sizing: border-box;
@@ -1300,7 +1285,6 @@ function CustomerCart() {
         ) : (
           <div className="row g-4">
             <div className="col-12 col-lg-8">
-              {/* CART ITEMS */}
               <div className="card border-0 rounded-4 shadow-sm mb-4">
                 <div className="card-header bg-white border-0 p-4">
                   <h4 className="fw-bold mb-0" style={{ color: DARK }}>
@@ -1309,27 +1293,41 @@ function CustomerCart() {
                 </div>
 
                 <div className="card-body p-3 p-md-4 pt-0 cart-card-body">
-                  {cart.items.map((item) => (
-                    <div
-                      key={item.cartItemId}
-                      className="row align-items-center g-3 py-3 border-bottom cart-item-row"
-                    >
-                      <div className="col-4 col-sm-3">
-                        {item.imageUrl ? (
-                          <img
-                            src={item.imageUrl}
-                            alt={item.foodName}
-                            className="img-fluid rounded-3 w-100 cart-item-image"
-                            loading="lazy"
-                            style={{
-                              height: 115,
-                              objectFit: "cover",
-                            }}
-                          />
-                        ) : (
+                  {cart.items.map((item) => {
+                    const foodImageUrl = getFoodImageUrl(item.imageUrl);
+
+                    return (
+                      <div
+                        key={item.cartItemId}
+                        className="row align-items-center g-3 py-3 border-bottom cart-item-row"
+                      >
+                        <div className="col-4 col-sm-3">
+                          {foodImageUrl ? (
+                            <img
+                              src={foodImageUrl}
+                              alt={item.foodName || "Food item"}
+                              className="img-fluid rounded-3 w-100 cart-item-image"
+                              loading="lazy"
+                              style={{
+                                height: 115,
+                                objectFit: "cover",
+                                backgroundColor: "#f0e5ff",
+                              }}
+                              onError={(event) => {
+                                event.currentTarget.style.display = "none";
+                                const fallback =
+                                  event.currentTarget.nextElementSibling;
+                                if (fallback) {
+                                  fallback.style.display = "flex";
+                                }
+                              }}
+                            />
+                          ) : null}
+
                           <div
-                            className="rounded-3 d-flex align-items-center justify-content-center cart-item-image"
+                            className="rounded-3 align-items-center justify-content-center cart-item-image"
                             style={{
+                              display: foodImageUrl ? "none" : "flex",
                               height: 115,
                               backgroundColor: "#f0e5ff",
                               fontSize: 42,
@@ -1337,93 +1335,93 @@ function CustomerCart() {
                           >
                             🍽️
                           </div>
-                        )}
-                      </div>
+                        </div>
 
-                      <div className="col-8 col-sm-9 cart-item-details">
-                        <div className="cart-item-heading">
-                          <div>
-                            <h5
-                              className="fw-bold mb-1"
-                              style={{ color: DARK }}
-                            >
-                              {item.foodName}
-                            </h5>
+                        <div className="col-8 col-sm-9 cart-item-details">
+                          <div className="cart-item-heading">
+                            <div>
+                              <h5
+                                className="fw-bold mb-1"
+                                style={{ color: DARK }}
+                              >
+                                {item.foodName}
+                              </h5>
 
-                            <p className="small text-secondary mb-2">
-                              {item.restaurantName}
-                            </p>
+                              <p className="small text-secondary mb-2">
+                                {item.restaurantName}
+                              </p>
 
-                            <div
-                              className="fw-bold"
-                              style={{ color: PURPLE }}
-                            >
-                              {formatPrice(item.unitPrice)}
+                              <div
+                                className="fw-bold"
+                                style={{ color: PURPLE }}
+                              >
+                                {formatPrice(item.unitPrice)}
+                              </div>
                             </div>
-                          </div>
 
-                          <button
-                            type="button"
-                            className="btn btn-sm btn-outline-danger align-self-start"
-                            disabled={
-                              busyItem === item.cartItemId ||
-                              checkingOut
-                            }
-                            onClick={() => removeItem(item)}
-                          >
-                            Remove
-                          </button>
-                        </div>
-
-                        <div className="cart-item-controls mt-3">
-                          <div className="btn-group" role="group">
                             <button
                               type="button"
-                              className="btn btn-sm btn-outline-secondary"
+                              className="btn btn-sm btn-outline-danger align-self-start"
                               disabled={
                                 busyItem === item.cartItemId ||
-                                item.quantity <= 1 ||
                                 checkingOut
                               }
-                              onClick={() =>
-                                updateQuantity(item, item.quantity - 1)
-                              }
+                              onClick={() => removeItem(item)}
                             >
-                              −
+                              Remove
                             </button>
+                          </div>
 
-                            <span
-                              className="btn btn-sm border bg-light"
-                              style={{ minWidth: 42 }}
-                            >
-                              {busyItem === item.cartItemId
-                                ? "..."
-                                : item.quantity}
+                          <div className="cart-item-controls mt-3">
+                            <div className="btn-group" role="group">
+                              <button
+                                type="button"
+                                className="btn btn-sm btn-outline-secondary"
+                                disabled={
+                                  busyItem === item.cartItemId ||
+                                  item.quantity <= 1 ||
+                                  checkingOut
+                                }
+                                onClick={() =>
+                                  updateQuantity(item, item.quantity - 1)
+                                }
+                              >
+                                −
+                              </button>
+
+                              <span
+                                className="btn btn-sm border bg-light"
+                                style={{ minWidth: 42 }}
+                              >
+                                {busyItem === item.cartItemId
+                                  ? "..."
+                                  : item.quantity}
+                              </span>
+
+                              <button
+                                type="button"
+                                className="btn btn-sm btn-outline-secondary"
+                                disabled={
+                                  busyItem === item.cartItemId ||
+                                  item.quantity >= 99 ||
+                                  checkingOut
+                                }
+                                onClick={() =>
+                                  updateQuantity(item, item.quantity + 1)
+                                }
+                              >
+                                +
+                              </button>
+                            </div>
+
+                            <span className="small fw-semibold ms-auto cart-item-subtotal">
+                              Subtotal: {formatPrice(item.subtotal)}
                             </span>
-
-                            <button
-                              type="button"
-                              className="btn btn-sm btn-outline-secondary"
-                              disabled={
-                                busyItem === item.cartItemId ||
-                                item.quantity >= 99 ||
-                                checkingOut
-                              }
-                              onClick={() =>
-                                updateQuantity(item, item.quantity + 1)
-                              }
-                            >
-                              +
-                            </button>
                           </div>
-
-                          <span className="small fw-semibold ms-auto cart-item-subtotal">
-                            Subtotal: {formatPrice(item.subtotal)}
-                          </span>
                         </div>
                       </div>
-                    </div>
-                  ))}
+                    );
+                  })}
 
                   <div className="d-flex flex-wrap justify-content-between align-items-center gap-2 pt-4">
                     <Link
@@ -1520,7 +1518,6 @@ function CustomerCart() {
                                 String(address.id)
                                   ? "#f4edff"
                                   : "#ffffff",
-
                               border:
                                 String(selectedAddressId) ===
                                 String(address.id)
@@ -1865,7 +1862,6 @@ function CustomerCart() {
                               className="card h-100 rounded-3"
                               style={{
                                 backgroundColor: "#fbf8ff",
-
                                 border: isApplied
                                   ? `2px solid ${PURPLE}`
                                   : "1px dashed #b69ae4",
@@ -2043,7 +2039,6 @@ function CustomerCart() {
                         paymentMethod === "RAZORPAY"
                           ? "#f4edff"
                           : "#ffffff",
-
                       border:
                         paymentMethod === "RAZORPAY"
                           ? `2px solid ${PURPLE}`
@@ -2068,7 +2063,7 @@ function CustomerCart() {
                         </strong>
 
                         <small className="text-secondary">
-                          Secure online payment
+                          Cards • UPI • Google Pay • PhonePe • Net Banking • Wallets
                         </small>
                       </span>
                     </div>
@@ -2085,7 +2080,6 @@ function CustomerCart() {
                         paymentMethod === "COD"
                           ? "#f4edff"
                           : "#ffffff",
-
                       border:
                         paymentMethod === "COD"
                           ? `2px solid ${PURPLE}`

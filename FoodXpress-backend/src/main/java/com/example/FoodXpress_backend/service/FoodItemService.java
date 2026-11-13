@@ -13,10 +13,13 @@ public class FoodItemService {
 
     private final FoodItemRepository foodItemRepository;
 
-    public FoodItemService(
-            FoodItemRepository foodItemRepository) {
+    public FoodItemService(FoodItemRepository foodItemRepository) {
         this.foodItemRepository = foodItemRepository;
     }
+
+    // ---------------------------------------------------------
+    // EXISTING RESTAURANT MENU
+    // ---------------------------------------------------------
 
     public List<FoodItemResponse> getMenuByRestaurant(
             Long restaurantId) {
@@ -35,8 +38,28 @@ public class FoodItemService {
                         item.getCategory(),
                         item.getPrice(),
                         item.getImageUrl(),
+                        item.isAvailable(),
                         item.isVegetarian()
                 ))
+                .toList();
+    }
+
+    // ---------------------------------------------------------
+    // CHATBOT GLOBAL FOOD SEARCH
+    // ---------------------------------------------------------
+
+    public List<FoodItemResponse> searchFood(String query) {
+
+        if (query == null || query.trim().isEmpty()) {
+            return List.of();
+        }
+
+        String cleanedQuery = query.trim();
+
+        return foodItemRepository
+                .searchAvailableFood(cleanedQuery)
+                .stream()
+                .map(FoodItemResponse::new)
                 .toList();
     }
 }

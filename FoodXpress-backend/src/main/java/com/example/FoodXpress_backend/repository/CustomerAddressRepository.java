@@ -1,4 +1,3 @@
-
 package com.example.FoodXpress_backend.repository;
 
 import com.example.FoodXpress_backend.entity.CustomerAddress;
@@ -17,6 +16,10 @@ public interface CustomerAddressRepository
 
     Optional<CustomerAddress> findByIdAndCustomer_Id(
             Long addressId,
+            Long customerId
+    );
+
+    Optional<CustomerAddress> findByCustomer_IdAndDefaultAddressTrue(
             Long customerId
     );
 

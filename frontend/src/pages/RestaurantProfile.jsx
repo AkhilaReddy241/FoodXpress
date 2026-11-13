@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
+import LocationPicker from "../components/location/LocationPicker.jsx";
 
 const PURPLE = "#641bc2";
 const DARK = "#351078";
@@ -13,6 +14,10 @@ const emptyProfile = {
   email: "",
   phone: "",
   address: "",
+  street: "",
+  city: "",
+  state: "",
+  pincode: "",
   cuisine: "",
   active: true,
   description: "",
@@ -21,6 +26,12 @@ const emptyProfile = {
   deliveryCharge: 40,
   freeDelivery: false,
   rating: 0,
+  openingTime: "",
+  closingTime: "",
+  openingHours: "",
+  open: true,
+  latitude: null,
+  longitude: null,
 };
 
 function RestaurantProfile() {
@@ -33,6 +44,7 @@ function RestaurantProfile() {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
+  const [showLocationPicker, setShowLocationPicker] = useState(false);
 
   const restaurantName =
     profile.restaurantName ||
@@ -90,6 +102,18 @@ function RestaurantProfile() {
           email: data.email ?? "",
           phone: data.phone ?? "",
           address: data.address ?? "",
+          street:
+            data.street ??
+            data.addressLine ??
+            data.restaurantAddressLine ??
+            "",
+          city: data.city ?? "",
+          state: data.state ?? "",
+          pincode:
+            data.pincode ??
+            data.pinCode ??
+            data.postalCode ??
+            "",
           cuisine: data.cuisine ?? "",
           active: data.active ?? true,
           description: data.description ?? "",
@@ -98,6 +122,43 @@ function RestaurantProfile() {
           deliveryCharge: data.deliveryCharge ?? 40,
           freeDelivery: data.freeDelivery ?? false,
           rating: data.rating ?? 0,
+
+          openingTime:
+            data.openingTime ??
+            data.openTime ??
+            data.opensAt ??
+            data.openingHoursStart ??
+            "",
+
+          closingTime:
+            data.closingTime ??
+            data.closeTime ??
+            data.closesAt ??
+            data.closingHoursEnd ??
+            "",
+
+          openingHours:
+            data.openingHours ??
+            data.businessHours ??
+            data.restaurantHours ??
+            "",
+
+          open:
+            data.open ??
+            data.isOpen ??
+            data.currentlyOpen ??
+            data.restaurantOpen ??
+            true,
+
+          latitude:
+            data.latitude !== null && data.latitude !== undefined
+              ? Number(data.latitude)
+              : null,
+
+          longitude:
+            data.longitude !== null && data.longitude !== undefined
+              ? Number(data.longitude)
+              : null,
         };
 
         if (cancelled) return;
@@ -109,6 +170,7 @@ function RestaurantProfile() {
           "restaurantOwnerName",
           loadedProfile.restaurantName
         );
+
         localStorage.setItem(
           "restaurantOwnerEmail",
           loadedProfile.email
@@ -141,6 +203,18 @@ function RestaurantProfile() {
     setError("");
   };
 
+  const handleOpenStatusChange = (event) => {
+    const checked = event.target.checked;
+
+    setProfile((previous) => ({
+      ...previous,
+      open: checked,
+    }));
+
+    setMessage("");
+    setError("");
+  };
+
   const handleFreeDeliveryChange = (event) => {
     const checked = event.target.checked;
 
@@ -165,8 +239,28 @@ function RestaurantProfile() {
   const handleCancel = () => {
     setProfile({ ...savedProfile });
     setIsEditing(false);
+    setShowLocationPicker(false);
     setError("");
     setMessage("Changes cancelled.");
+  };
+
+  const handleLocationConfirmed = (locationData) => {
+    if (!locationData) return;
+
+    setProfile((previous) => ({
+      ...previous,
+      latitude: Number(locationData.latitude),
+      longitude: Number(locationData.longitude),
+
+      // If LocationPicker gives us a readable address,
+      // use it as the restaurant address.
+      address:
+        locationData.formattedAddress || previous.address,
+    }));
+
+    setShowLocationPicker(false);
+    setMessage("Restaurant location selected successfully.");
+    setError("");
   };
 
   const handleSave = async (event) => {
@@ -184,16 +278,44 @@ function RestaurantProfile() {
     const payload = {
       restaurantName: profile.restaurantName.trim(),
       phone: profile.phone.trim(),
+
       address: profile.address.trim(),
+      street: profile.street.trim(),
+      city: profile.city.trim(),
+      state: profile.state.trim(),
+      pincode: profile.pincode.trim(),
+
       cuisine: profile.cuisine,
       description: profile.description.trim(),
       imageUrl: profile.imageUrl.trim(),
+
       deliveryTimeMinutes: Number(profile.deliveryTimeMinutes),
+
       deliveryCharge: profile.freeDelivery
         ? 0
         : Number(profile.deliveryCharge),
+
       freeDelivery: profile.freeDelivery,
       rating: Number(profile.rating),
+
+      openingTime: profile.openingTime,
+      closingTime: profile.closingTime,
+      openingHours: profile.openingHours.trim(),
+      open: profile.open,
+
+      latitude:
+        profile.latitude !== null &&
+        profile.latitude !== undefined &&
+        profile.latitude !== ""
+          ? Number(profile.latitude)
+          : null,
+
+      longitude:
+        profile.longitude !== null &&
+        profile.longitude !== undefined &&
+        profile.longitude !== ""
+          ? Number(profile.longitude)
+          : null,
     };
 
     if (
@@ -231,6 +353,29 @@ function RestaurantProfile() {
       return;
     }
 
+    if (
+      payload.openingTime &&
+      payload.closingTime &&
+      payload.openingTime === payload.closingTime
+    ) {
+      setError("Opening time and closing time cannot be the same.");
+      return;
+    }
+
+    if (
+      (payload.latitude !== null &&
+        (!Number.isFinite(payload.latitude) ||
+          payload.latitude < -90 ||
+          payload.latitude > 90)) ||
+      (payload.longitude !== null &&
+        (!Number.isFinite(payload.longitude) ||
+          payload.longitude < -180 ||
+          payload.longitude > 180))
+    ) {
+      setError("Please select a valid restaurant location.");
+      return;
+    }
+
     setSaving(true);
 
     try {
@@ -262,27 +407,87 @@ function RestaurantProfile() {
         restaurantName: data.restaurantName ?? payload.restaurantName,
         email: data.email ?? profile.email,
         phone: data.phone ?? payload.phone,
+
         address: data.address ?? payload.address,
+        street:
+          data.street ??
+          data.addressLine ??
+          data.restaurantAddressLine ??
+          payload.street,
+        city: data.city ?? payload.city,
+        state: data.state ?? payload.state,
+        pincode:
+          data.pincode ??
+          data.pinCode ??
+          data.postalCode ??
+          payload.pincode,
+
         cuisine: data.cuisine ?? payload.cuisine,
         active: data.active ?? profile.active,
         description: data.description ?? payload.description,
         imageUrl: data.imageUrl ?? payload.imageUrl,
+
         deliveryTimeMinutes:
           data.deliveryTimeMinutes ?? payload.deliveryTimeMinutes,
-        deliveryCharge: data.deliveryCharge ?? payload.deliveryCharge,
-        freeDelivery: data.freeDelivery ?? payload.freeDelivery,
+
+        deliveryCharge:
+          data.deliveryCharge ?? payload.deliveryCharge,
+
+        freeDelivery:
+          data.freeDelivery ?? payload.freeDelivery,
+
         rating: data.rating ?? payload.rating,
+
+        openingTime:
+          data.openingTime ??
+          data.openTime ??
+          data.opensAt ??
+          data.openingHoursStart ??
+          payload.openingTime,
+
+        closingTime:
+          data.closingTime ??
+          data.closeTime ??
+          data.closesAt ??
+          data.closingHoursEnd ??
+          payload.closingTime,
+
+        openingHours:
+          data.openingHours ??
+          data.businessHours ??
+          data.restaurantHours ??
+          payload.openingHours,
+
+        open:
+          data.open ??
+          data.isOpen ??
+          data.currentlyOpen ??
+          data.restaurantOpen ??
+          payload.open,
+
+        latitude:
+          data.latitude !== null && data.latitude !== undefined
+            ? Number(data.latitude)
+            : payload.latitude,
+
+        longitude:
+          data.longitude !== null && data.longitude !== undefined
+            ? Number(data.longitude)
+            : payload.longitude,
       };
 
       setProfile(updatedProfile);
       setSavedProfile(updatedProfile);
       setIsEditing(false);
+      setShowLocationPicker(false);
+
       setMessage("Restaurant profile updated successfully!");
 
       localStorage.setItem(
         "restaurantOwnerName",
         updatedProfile.restaurantName
       );
+
       localStorage.setItem(
         "restaurantOwnerEmail",
         updatedProfile.email
@@ -550,9 +755,7 @@ function RestaurantProfile() {
           <button
             type="button"
             className="btn btn-outline-light px-3 px-md-4"
-            onClick={() =>
-              navigate("/restaurant/dashboard")
-            }
+            onClick={() => navigate("/restaurant/dashboard")}
             style={{
               borderRadius: "9px",
               fontWeight: "600",
@@ -576,14 +779,14 @@ function RestaurantProfile() {
               letterSpacing: "1px",
             }}
           >
-
           </div>
 
-          <h2 className="fw-bold mb-1 text-center" style={{ color: DARK }}>
+          <h2
+            className="fw-bold mb-1 text-center"
+            style={{ color: DARK }}
+          >
             Restaurant Profile
           </h2>
-
-
         </div>
 
         <div
@@ -631,7 +834,10 @@ function RestaurantProfile() {
                 <div className="row g-4">
 
                   <div className="col-12">
-                    <h6 className="fw-bold" style={{ color: PURPLE }}>
+                    <h6
+                      className="fw-bold"
+                      style={{ color: PURPLE }}
+                    >
                       Basic Information
                     </h6>
                     <hr />
@@ -705,7 +911,7 @@ function RestaurantProfile() {
                     />
                   </div>
 
-                  <div className="col-12 col-md-6">
+                  <div className="col-12">
                     <label
                       htmlFor="address"
                       className="form-label fw-semibold"
@@ -714,16 +920,236 @@ function RestaurantProfile() {
                       Restaurant Address *
                     </label>
 
-                    <input
+                    <textarea
                       id="address"
                       name="address"
                       className="form-control"
+                      rows="2"
                       value={profile.address}
                       onChange={handleChange}
                       required
                       style={inputStyle}
                     />
                   </div>
+
+                  <div className="col-12 col-md-6">
+                    <label
+                      htmlFor="street"
+                      className="form-label fw-semibold"
+                      style={labelStyle}
+                    >
+                      Street / Address Line
+                    </label>
+
+                    <input
+                      id="street"
+                      name="street"
+                      className="form-control"
+                      value={profile.street}
+                      onChange={handleChange}
+                      placeholder="Street / area / locality"
+                      style={inputStyle}
+                    />
+                  </div>
+
+                  <div className="col-12 col-md-6">
+                    <label
+                      htmlFor="city"
+                      className="form-label fw-semibold"
+                      style={labelStyle}
+                    >
+                      City
+                    </label>
+
+                    <input
+                      id="city"
+                      name="city"
+                      className="form-control"
+                      value={profile.city}
+                      onChange={handleChange}
+                      placeholder="Enter city"
+                      style={inputStyle}
+                    />
+                  </div>
+
+                  <div className="col-12 col-md-6">
+                    <label
+                      htmlFor="state"
+                      className="form-label fw-semibold"
+                      style={labelStyle}
+                    >
+                      State
+                    </label>
+
+                    <input
+                      id="state"
+                      name="state"
+                      className="form-control"
+                      value={profile.state}
+                      onChange={handleChange}
+                      placeholder="Enter state"
+                      style={inputStyle}
+                    />
+                  </div>
+
+                  <div className="col-12 col-md-6">
+                    <label
+                      htmlFor="pincode"
+                      className="form-label fw-semibold"
+                      style={labelStyle}
+                    >
+                      PIN Code
+                    </label>
+
+                    <input
+                      id="pincode"
+                      name="pincode"
+                      type="text"
+                      inputMode="numeric"
+                      maxLength="6"
+                      className="form-control"
+                      value={profile.pincode}
+                      onChange={handleChange}
+                      placeholder="Enter 6-digit PIN code"
+                      style={inputStyle}
+                    />
+                  </div>
+
+                  {/* RESTAURANT LOCATION */}
+                  <div className="col-12">
+                    <div
+                      className="p-3 p-md-4 rounded-3"
+                      style={{
+                        background: "#f8f4ff",
+                        border: "1px solid #e4d7fa",
+                      }}
+                    >
+                      <div className="d-flex flex-wrap justify-content-between align-items-center gap-3">
+                        <div>
+                          <h6
+                            className="fw-bold mb-1"
+                            style={{ color: PURPLE }}
+                          >
+                            📍 Restaurant Location
+                          </h6>
+
+                          <small className="text-secondary">
+                            Select the exact location of your restaurant so
+                            customers can see the real distance from their
+                            address.
+                          </small>
+                        </div>
+
+                        {isEditing && (
+                          <button
+                            type="button"
+                            className="btn text-white"
+                            onClick={() => {
+                              setShowLocationPicker(true);
+                              setMessage("");
+                              setError("");
+                            }}
+                            style={{
+                              backgroundColor: PURPLE,
+                              borderRadius: "9px",
+                              fontWeight: "600",
+                            }}
+                          >
+                            📍 {profile.latitude && profile.longitude
+                              ? "Change Location"
+                              : "Select Location"}
+                          </button>
+                        )}
+                      </div>
+
+                      {profile.latitude !== null &&
+                      profile.longitude !== null ? (
+                        <div className="mt-3">
+                          <div className="alert alert-success mb-0">
+                            <div className="fw-semibold">
+                              ✓ Restaurant location selected
+                            </div>
+
+                            <div className="small mt-1">
+                              Latitude: {Number(profile.latitude).toFixed(6)}
+                            </div>
+
+                            <div className="small">
+                              Longitude: {Number(profile.longitude).toFixed(6)}
+                            </div>
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="alert alert-warning mt-3 mb-0">
+                          <div className="fw-semibold">
+                            Location not selected yet.
+                          </div>
+
+                          <div className="small">
+                            Please select your restaurant's exact location
+                            before saving.
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+
+                  {showLocationPicker && isEditing && (
+                    <div className="col-12">
+                      <div
+                        className="card border-0"
+                        style={{
+                          borderRadius: "14px",
+                          boxShadow:
+                            "0 6px 24px rgba(53, 16, 120, 0.10)",
+                        }}
+                      >
+                        <div
+                          className="card-header d-flex flex-wrap justify-content-between align-items-center gap-2"
+                          style={{
+                            background: `linear-gradient(110deg, ${DARK}, ${PURPLE})`,
+                            color: "white",
+                          }}
+                        >
+                          <div>
+                            <div className="fw-bold">
+                              Select Restaurant Location
+                            </div>
+
+                            <small>
+                              Search, use your current location, or click the
+                              map.
+                            </small>
+                          </div>
+
+                          <button
+                            type="button"
+                            className="btn btn-sm btn-outline-light"
+                            onClick={() => setShowLocationPicker(false)}
+                          >
+                            Close
+                          </button>
+                        </div>
+
+                        <div className="card-body p-3 p-md-4">
+                          <LocationPicker
+                            initialLocation={
+                              profile.latitude !== null &&
+                              profile.longitude !== null
+                                ? {
+                                    lat: Number(profile.latitude),
+                                    lng: Number(profile.longitude),
+                                  }
+                                : null
+                            }
+                            onLocationConfirmed={
+                              handleLocationConfirmed
+                            }
+                          />
+                        </div>
+                      </div>
+                    </div>
+                  )}
 
                   <div className="col-12 col-md-6">
                     <label
@@ -818,7 +1244,118 @@ function RestaurantProfile() {
                   </div>
 
                   <div className="col-12">
-                    <h6 className="fw-bold mt-2" style={{ color: PURPLE }}>
+                    <h6
+                      className="fw-bold mt-2"
+                      style={{ color: PURPLE }}
+                    >
+                      Opening & Closing Timings
+                    </h6>
+                    <hr />
+                  </div>
+
+                  <div className="col-12 col-md-6">
+                    <label
+                      htmlFor="openingTime"
+                      className="form-label fw-semibold"
+                      style={labelStyle}
+                    >
+                      Opening Time
+                    </label>
+
+                    <input
+                      id="openingTime"
+                      name="openingTime"
+                      type="time"
+                      className="form-control"
+                      value={profile.openingTime}
+                      onChange={handleChange}
+                      style={inputStyle}
+                    />
+                  </div>
+
+                  <div className="col-12 col-md-6">
+                    <label
+                      htmlFor="closingTime"
+                      className="form-label fw-semibold"
+                      style={labelStyle}
+                    >
+                      Closing Time
+                    </label>
+
+                    <input
+                      id="closingTime"
+                      name="closingTime"
+                      type="time"
+                      className="form-control"
+                      value={profile.closingTime}
+                      onChange={handleChange}
+                      style={inputStyle}
+                    />
+                  </div>
+
+                  <div className="col-12 col-md-6">
+                    <label
+                      htmlFor="openingHours"
+                      className="form-label fw-semibold"
+                      style={labelStyle}
+                    >
+                      Opening Hours
+                    </label>
+
+                    <input
+                      id="openingHours"
+                      name="openingHours"
+                      type="text"
+                      className="form-control"
+                      value={profile.openingHours}
+                      onChange={handleChange}
+                      placeholder="Example: Monday - Sunday"
+                      style={inputStyle}
+                    />
+
+                    <small className="text-muted">
+                      Enter the days or schedule when your restaurant operates.
+                    </small>
+                  </div>
+
+                  <div className="col-12 col-md-6">
+                    <div
+                      className="form-check form-switch p-3 rounded-3"
+                      style={{
+                        backgroundColor: "#f8f4ff",
+                        border: "1px solid #e4d7fa",
+                      }}
+                    >
+                      <input
+                        id="open"
+                        type="checkbox"
+                        className="form-check-input ms-0 me-2"
+                        checked={profile.open}
+                        onChange={handleOpenStatusChange}
+                        disabled={!isEditing || saving}
+                      />
+
+                      <label
+                        htmlFor="open"
+                        className="form-check-label fw-semibold"
+                        style={labelStyle}
+                      >
+                        Restaurant Currently Open
+                      </label>
+
+                      <div className="small text-secondary mt-1">
+                        {profile.open
+                          ? "Customers can see the restaurant as open."
+                          : "Customers can see the restaurant as closed."}
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="col-12">
+                    <h6
+                      className="fw-bold mt-2"
+                      style={{ color: PURPLE }}
+                    >
                       Delivery Information
                     </h6>
                     <hr />
@@ -870,7 +1407,11 @@ function RestaurantProfile() {
                       value={profile.deliveryCharge}
                       onChange={handleChange}
                       required
-                      disabled={!isEditing || saving || profile.freeDelivery}
+                      disabled={
+                        !isEditing ||
+                        saving ||
+                        profile.freeDelivery
+                      }
                       style={inputStyle}
                     />
 
@@ -918,7 +1459,7 @@ function RestaurantProfile() {
                       className="form-label fw-semibold"
                       style={labelStyle}
                     >
-                     Rating (0–5)
+                      Rating (0–5)
                     </label>
 
                     <input
@@ -940,7 +1481,12 @@ function RestaurantProfile() {
                     </small>
 
                     <div className="mt-2">
-                      <span style={{ color: "#e5a100", fontSize: "22px" }}>
+                      <span
+                        style={{
+                          color: "#e5a100",
+                          fontSize: "22px",
+                        }}
+                      >
                         {"★".repeat(
                           Math.max(
                             0,
@@ -959,7 +1505,10 @@ function RestaurantProfile() {
                   </div>
 
                   <div className="col-12">
-                    <h6 className="fw-bold mt-2" style={{ color: PURPLE }}>
+                    <h6
+                      className="fw-bold mt-2"
+                      style={{ color: PURPLE }}
+                    >
                       Account Status
                     </h6>
 
@@ -971,7 +1520,9 @@ function RestaurantProfile() {
                         backgroundColor: profile.active
                           ? "#dff7e8"
                           : "#e9ecef",
-                        color: profile.active ? "#187442" : "#495057",
+                        color: profile.active
+                          ? "#187442"
+                          : "#495057",
                       }}
                     >
                       {profile.active ? "● Active" : "● Inactive"}

@@ -1,4 +1,3 @@
-
 package com.example.FoodXpress_backend.service;
 
 import java.util.List;
@@ -121,6 +120,24 @@ public class AdminService {
                 .stream()
                 .map(this::toRestaurantResponse)
                 .toList();
+    }
+
+    // =========================
+    // GET SINGLE RESTAURANT DETAILS
+    // =========================
+    //
+    // This is used when Admin clicks VIEW.
+    // It fetches the latest restaurant + owner
+    // information directly from the database.
+    // =========================
+
+    @Transactional(readOnly = true)
+    public AdminRestaurantResponse getRestaurantDetails(
+            Long restaurantId) {
+
+        Restaurant restaurant = getRestaurant(restaurantId);
+
+        return toRestaurantResponse(restaurant);
     }
 
     // =========================
@@ -366,28 +383,49 @@ public class AdminService {
     // =========================
 
     private AdminRestaurantResponse toRestaurantResponse(
-            Restaurant restaurant) {
+        Restaurant restaurant) {
 
-        RestaurantOwner owner = restaurant.getRestaurantOwner();
+    RestaurantOwner owner = restaurant.getRestaurantOwner();
 
-        return new AdminRestaurantResponse(
-                restaurant.getId(),
-                restaurant.getName(),
-                restaurant.getCuisine(),
-                restaurant.getDescription(),
-                restaurant.getRating(),
-                restaurant.getDeliveryTimeMinutes(),
-                restaurant.getImageUrl(),
-                restaurant.getDeliveryCharge(),
-                restaurant.isActive(),
-                restaurant.getApprovalStatus(),
-                owner == null ? null : owner.getId(),
-                owner == null ? null : owner.getRestaurantName(),
-                owner == null ? null : owner.getEmail(),
-                owner == null ? null : owner.getPhone(),
-                owner == null ? null : owner.getAddress()
-        );
-    }
+    return new AdminRestaurantResponse(
+
+            // Restaurant details
+            restaurant.getId(),
+            restaurant.getName(),
+            restaurant.getCuisine(),
+            restaurant.getDescription(),
+            restaurant.getRating(),
+            restaurant.getDeliveryTimeMinutes(),
+            restaurant.getImageUrl(),
+            restaurant.getDeliveryCharge(),
+            restaurant.isFreeDelivery(),
+
+            // Restaurant status
+            restaurant.isActive(),
+            restaurant.getApprovalStatus(),
+
+            // Owner details
+            owner == null ? null : owner.getId(),
+            owner == null ? null : owner.getRestaurantName(),
+            owner == null ? null : owner.getEmail(),
+            owner == null ? null : owner.getPhone(),
+
+            // Main address
+            owner == null ? null : owner.getAddress(),
+
+            // Separate address
+            owner == null ? null : owner.getStreet(),
+            owner == null ? null : owner.getCity(),
+            owner == null ? null : owner.getState(),
+            owner == null ? null : owner.getPincode(),
+
+            // Opening information
+            owner == null ? null : owner.getOpeningTime(),
+            owner == null ? null : owner.getClosingTime(),
+            owner == null ? null : owner.getOpeningHours(),
+            owner != null && owner.isOpen()
+    );
+}
 
     // =========================
     // CONVERT CUSTOMER ADDRESS RESPONSE

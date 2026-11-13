@@ -11,12 +11,23 @@ function RestaurantRegister() {
     email: "",
     phone: "",
     address: "",
+    street: "",
+    city: "",
+    state: "",
+    pincode: "",
     cuisine: "",
     description: "",
     imageUrl: "",
+
+    openingTime: "",
+    closingTime: "",
+    openingHours: "",
+    open: true,
+
     deliveryTimeMinutes: "30",
     deliveryCharge: "40",
     freeDelivery: false,
+
     password: "",
     confirmPassword: "",
   });
@@ -66,6 +77,23 @@ function RestaurantRegister() {
       return;
     }
 
+    if (
+      formData.openingTime &&
+      formData.closingTime &&
+      formData.openingTime === formData.closingTime
+    ) {
+      setError("Opening time and closing time cannot be the same.");
+      return;
+    }
+
+    if (
+      formData.pincode &&
+      !/^\d{6}$/.test(formData.pincode.trim())
+    ) {
+      setError("PIN code must contain exactly 6 digits.");
+      return;
+    }
+
     setLoading(true);
 
     try {
@@ -80,15 +108,30 @@ function RestaurantRegister() {
           restaurantName: formData.restaurantName.trim(),
           email: normalizedEmail,
           phone: formData.phone.trim(),
+
           address: formData.address.trim(),
+          street: formData.street.trim(),
+          city: formData.city.trim(),
+          state: formData.state.trim(),
+          pincode: formData.pincode.trim(),
+
           cuisine: formData.cuisine,
           description: formData.description.trim(),
           imageUrl: formData.imageUrl.trim() || null,
+
+          openingTime: formData.openingTime,
+          closingTime: formData.closingTime,
+          openingHours: formData.openingHours.trim(),
+          open: formData.open,
+
           deliveryTimeMinutes: Number(formData.deliveryTimeMinutes),
+
           deliveryCharge: formData.freeDelivery
             ? 0
             : Number(formData.deliveryCharge),
+
           freeDelivery: formData.freeDelivery,
+
           password: formData.password,
           confirmPassword: formData.confirmPassword,
         }),
@@ -250,15 +293,18 @@ function RestaurantRegister() {
         )}
 
         <form onSubmit={handleSubmit}>
+
           <h5 className="fw-bold mb-3" style={{ color: "#351078" }}>
             Restaurant Information
           </h5>
 
           <div className="row g-3">
+
             <div className="col-md-6">
               <label htmlFor="restaurantName" className="form-label">
                 Restaurant Name *
               </label>
+
               <input
                 id="restaurantName"
                 type="text"
@@ -276,6 +322,7 @@ function RestaurantRegister() {
               <label htmlFor="cuisine" className="form-label">
                 Cuisine Type *
               </label>
+
               <select
                 id="cuisine"
                 name="cuisine"
@@ -304,6 +351,7 @@ function RestaurantRegister() {
               <label htmlFor="description" className="form-label">
                 Restaurant Description *
               </label>
+
               <textarea
                 id="description"
                 name="description"
@@ -315,6 +363,7 @@ function RestaurantRegister() {
                 maxLength={150}
                 required
               />
+
               <small className="text-secondary">
                 Maximum 150 characters.
               </small>
@@ -324,6 +373,7 @@ function RestaurantRegister() {
               <label htmlFor="imageUrl" className="form-label">
                 Restaurant Image URL
               </label>
+
               <input
                 id="imageUrl"
                 type="url"
@@ -334,10 +384,192 @@ function RestaurantRegister() {
                 onChange={handleChange}
                 maxLength={1000}
               />
+
               <small className="text-secondary">
                 Paste a publicly accessible image URL.
               </small>
             </div>
+
+          </div>
+
+          <hr className="my-4" />
+
+          <h5 className="fw-bold mb-3" style={{ color: "#351078" }}>
+            Restaurant Address
+          </h5>
+
+          <div className="row g-3">
+
+            <div className="col-12">
+              <label htmlFor="address" className="form-label">
+                Restaurant Address *
+              </label>
+
+              <textarea
+                id="address"
+                name="address"
+                className="form-control"
+                rows="2"
+                placeholder="Enter complete restaurant address"
+                value={formData.address}
+                onChange={handleChange}
+                required
+              />
+            </div>
+
+            <div className="col-md-6">
+              <label htmlFor="street" className="form-label">
+                Street / Address Line
+              </label>
+
+              <input
+                id="street"
+                type="text"
+                name="street"
+                className="form-control"
+                placeholder="Enter street / locality"
+                value={formData.street}
+                onChange={handleChange}
+              />
+            </div>
+
+            <div className="col-md-6">
+              <label htmlFor="city" className="form-label">
+                City
+              </label>
+
+              <input
+                id="city"
+                type="text"
+                name="city"
+                className="form-control"
+                placeholder="Enter city"
+                value={formData.city}
+                onChange={handleChange}
+              />
+            </div>
+
+            <div className="col-md-6">
+              <label htmlFor="state" className="form-label">
+                State
+              </label>
+
+              <input
+                id="state"
+                type="text"
+                name="state"
+                className="form-control"
+                placeholder="Enter state"
+                value={formData.state}
+                onChange={handleChange}
+              />
+            </div>
+
+            <div className="col-md-6">
+              <label htmlFor="pincode" className="form-label">
+                PIN Code
+              </label>
+
+              <input
+                id="pincode"
+                type="text"
+                name="pincode"
+                inputMode="numeric"
+                maxLength="6"
+                className="form-control"
+                placeholder="Enter 6-digit PIN code"
+                value={formData.pincode}
+                onChange={handleChange}
+              />
+            </div>
+
+          </div>
+
+          <hr className="my-4" />
+
+          <h5 className="fw-bold mb-3" style={{ color: "#351078" }}>
+            Opening & Closing Timings
+          </h5>
+
+          <div className="row g-3">
+
+            <div className="col-md-6">
+              <label htmlFor="openingTime" className="form-label">
+                Opening Time
+              </label>
+
+              <input
+                id="openingTime"
+                type="time"
+                name="openingTime"
+                className="form-control"
+                value={formData.openingTime}
+                onChange={handleChange}
+              />
+            </div>
+
+            <div className="col-md-6">
+              <label htmlFor="closingTime" className="form-label">
+                Closing Time
+              </label>
+
+              <input
+                id="closingTime"
+                type="time"
+                name="closingTime"
+                className="form-control"
+                value={formData.closingTime}
+                onChange={handleChange}
+              />
+            </div>
+
+            <div className="col-md-6">
+              <label htmlFor="openingHours" className="form-label">
+                Opening Hours
+              </label>
+
+              <input
+                id="openingHours"
+                type="text"
+                name="openingHours"
+                className="form-control"
+                placeholder="Example: Monday - Sunday"
+                value={formData.openingHours}
+                onChange={handleChange}
+              />
+
+              <small className="text-secondary">
+                Enter the days or schedule when your restaurant operates.
+              </small>
+            </div>
+
+            <div className="col-md-6">
+              <div className="form-check form-switch mt-md-4 pt-md-2">
+                <input
+                  id="open"
+                  type="checkbox"
+                  name="open"
+                  className="form-check-input"
+                  checked={formData.open}
+                  onChange={handleChange}
+                  role="switch"
+                />
+
+                <label
+                  htmlFor="open"
+                  className="form-check-label fw-semibold"
+                >
+                  Restaurant Currently Open
+                </label>
+              </div>
+
+              <small className="text-secondary">
+                {formData.open
+                  ? "Restaurant will be shown as open."
+                  : "Restaurant will be shown as closed."}
+              </small>
+            </div>
+
           </div>
 
           <hr className="my-4" />
@@ -347,6 +579,7 @@ function RestaurantRegister() {
           </h5>
 
           <div className="row g-3">
+
             <div className="col-md-6">
               <label
                 htmlFor="deliveryTimeMinutes"
@@ -354,6 +587,7 @@ function RestaurantRegister() {
               >
                 Estimated Delivery Time (minutes) *
               </label>
+
               <input
                 id="deliveryTimeMinutes"
                 type="number"
@@ -371,6 +605,7 @@ function RestaurantRegister() {
               <label htmlFor="deliveryCharge" className="form-label">
                 Delivery Charge (₹) *
               </label>
+
               <input
                 id="deliveryCharge"
                 type="number"
@@ -378,7 +613,11 @@ function RestaurantRegister() {
                 className="form-control"
                 min="0"
                 step="0.01"
-                value={formData.freeDelivery ? "0" : formData.deliveryCharge}
+                value={
+                  formData.freeDelivery
+                    ? "0"
+                    : formData.deliveryCharge
+                }
                 onChange={handleChange}
                 disabled={formData.freeDelivery}
                 required={!formData.freeDelivery}
@@ -396,6 +635,7 @@ function RestaurantRegister() {
                   onChange={handleChange}
                   role="switch"
                 />
+
                 <label
                   htmlFor="freeDelivery"
                   className="form-check-label fw-semibold"
@@ -403,10 +643,12 @@ function RestaurantRegister() {
                   Offer Free Delivery
                 </label>
               </div>
+
               <small className="text-secondary">
                 When enabled, the delivery charge is set to ₹0.
               </small>
             </div>
+
           </div>
 
           <hr className="my-4" />
@@ -416,10 +658,12 @@ function RestaurantRegister() {
           </h5>
 
           <div className="row g-3">
+
             <div className="col-md-6">
               <label htmlFor="email" className="form-label">
                 Email *
               </label>
+
               <input
                 id="email"
                 type="email"
@@ -437,6 +681,7 @@ function RestaurantRegister() {
               <label htmlFor="phone" className="form-label">
                 Phone Number *
               </label>
+
               <input
                 id="phone"
                 type="tel"
@@ -450,26 +695,11 @@ function RestaurantRegister() {
               />
             </div>
 
-            <div className="col-12">
-              <label htmlFor="address" className="form-label">
-                Restaurant Address *
-              </label>
-              <textarea
-                id="address"
-                name="address"
-                className="form-control"
-                rows="2"
-                placeholder="Enter complete restaurant address"
-                value={formData.address}
-                onChange={handleChange}
-                required
-              />
-            </div>
-
             <div className="col-md-6">
               <label htmlFor="password" className="form-label">
                 Password *
               </label>
+
               <input
                 id="password"
                 type="password"
@@ -488,6 +718,7 @@ function RestaurantRegister() {
               <label htmlFor="confirmPassword" className="form-label">
                 Confirm Password *
               </label>
+
               <input
                 id="confirmPassword"
                 type="password"
@@ -501,6 +732,7 @@ function RestaurantRegister() {
                 required
               />
             </div>
+
           </div>
 
           <button
@@ -515,6 +747,7 @@ function RestaurantRegister() {
           >
             {loading ? "Registering..." : "Register Restaurant"}
           </button>
+
         </form>
 
         <p className="text-center mt-4 mb-0">
@@ -527,6 +760,7 @@ function RestaurantRegister() {
             Login
           </button>
         </p>
+
       </div>
     </div>
   );

@@ -1,7 +1,8 @@
-
 package com.example.FoodXpress_backend.entity;
 
 import jakarta.persistence.*;
+
+import java.time.LocalDateTime;
 
 @Entity
 @Table(
@@ -28,6 +29,18 @@ public class CartItem {
     @Column(nullable = false)
     private int quantity;
 
+    // Tracks when the cart item was first added
+    @Column(name = "created_at")
+    private LocalDateTime createdAt;
+
+    // Tracks the latest cart activity
+    @Column(name = "updated_at")
+    private LocalDateTime updatedAt;
+
+    // Prevents sending the same reminder repeatedly
+    @Column(name = "reminder_sent")
+    private boolean reminderSent = false;
+
     public CartItem() {
     }
 
@@ -35,6 +48,24 @@ public class CartItem {
         this.customer = customer;
         this.foodItem = foodItem;
         this.quantity = quantity;
+    }
+
+    @PrePersist
+    protected void onCreate() {
+        LocalDateTime now = LocalDateTime.now();
+
+        if (createdAt == null) {
+            createdAt = now;
+        }
+
+        if (updatedAt == null) {
+            updatedAt = now;
+        }
+    }
+
+    @PreUpdate
+    protected void onUpdate() {
+        updatedAt = LocalDateTime.now();
     }
 
     public Long getId() {
@@ -45,24 +76,51 @@ public class CartItem {
         return customer;
     }
 
-    public void setCustomer(Customer customer) {
-        this.customer = customer;
-    }
-
     public FoodItem getFoodItem() {
         return foodItem;
-    }
-
-    public void setFoodItem(FoodItem foodItem) {
-        this.foodItem = foodItem;
     }
 
     public int getQuantity() {
         return quantity;
     }
 
+    public LocalDateTime getCreatedAt() {
+        return createdAt;
+    }
+
+    public LocalDateTime getUpdatedAt() {
+        return updatedAt;
+    }
+
+    public boolean isReminderSent() {
+        return reminderSent;
+    }
+
+    public void setId(Long id) {
+        this.id = id;
+    }
+
+    public void setCustomer(Customer customer) {
+        this.customer = customer;
+    }
+
+    public void setFoodItem(FoodItem foodItem) {
+        this.foodItem = foodItem;
+    }
+
     public void setQuantity(int quantity) {
         this.quantity = quantity;
     }
-}
 
+    public void setCreatedAt(LocalDateTime createdAt) {
+        this.createdAt = createdAt;
+    }
+
+    public void setUpdatedAt(LocalDateTime updatedAt) {
+        this.updatedAt = updatedAt;
+    }
+
+    public void setReminderSent(boolean reminderSent) {
+        this.reminderSent = reminderSent;
+    }
+}

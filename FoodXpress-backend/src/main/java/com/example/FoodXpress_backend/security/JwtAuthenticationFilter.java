@@ -26,10 +26,13 @@ import org.springframework.web.filter.OncePerRequestFilter;
 import java.io.IOException;
 import java.util.List;
 
-public class JwtAuthenticationFilter extends OncePerRequestFilter {
+public class JwtAuthenticationFilter
+        extends OncePerRequestFilter {
 
     private static final Logger log =
-            LoggerFactory.getLogger(JwtAuthenticationFilter.class);
+            LoggerFactory.getLogger(
+                    JwtAuthenticationFilter.class
+            );
 
     private final JwtService jwtService;
     private final CustomerRepository customerRepository;
@@ -46,39 +49,92 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
     }
 
     @Override
-    protected boolean shouldNotFilter(HttpServletRequest request) {
+    protected boolean shouldNotFilter(
+            HttpServletRequest request) {
 
-        String path = request.getServletPath();
-        String method = request.getMethod();
+        String path =
+                request.getServletPath();
 
+        String method =
+                request.getMethod();
+
+        // Always skip CORS preflight.
         if ("OPTIONS".equalsIgnoreCase(method)) {
             return true;
         }
 
+        /*
+         * Public POST authentication endpoints.
+         */
         if ("POST".equalsIgnoreCase(method)) {
-            return path.equals("/api/customers/register")
-                    || path.equals("/api/customers/login")
-                    || path.equals("/api/customers/forgot-password")
-                    || path.equals("/api/customers/verify-reset-otp")
-                    || path.equals("/api/customers/reset-password")
-                    || path.equals("/api/restaurant-owners/register")
-                    || path.equals("/api/restaurant-owners/login")
-                    || path.equals("/api/restaurant-owners/forgot-password")
-                    || path.equals("/api/restaurant-owners/verify-reset-otp")
-                    || path.equals("/api/restaurant-owners/reset-password")
-                    || path.equals("/api/admin/login")
-                    || path.equals("/api/admin/forgot-password")
-                    || path.equals("/api/admin/verify-reset-otp")
-                    || path.equals("/api/admin/reset-password")
-                    || path.equals("/api/delivery-partners/register")
-                    || path.equals("/api/delivery-partners/login");
+
+            return path.equals(
+                            "/api/customers/register")
+                    || path.equals(
+                            "/api/customers/login")
+                    || path.equals(
+                            "/api/customers/forgot-password")
+                    || path.equals(
+                            "/api/customers/verify-reset-otp")
+                    || path.equals(
+                            "/api/customers/reset-password")
+
+                    || path.equals(
+                            "/api/restaurant-owners/register")
+                    || path.equals(
+                            "/api/restaurant-owners/login")
+                    || path.equals(
+                            "/api/restaurant-owners/forgot-password")
+                    || path.equals(
+                            "/api/restaurant-owners/verify-reset-otp")
+                    || path.equals(
+                            "/api/restaurant-owners/reset-password")
+
+                    || path.equals(
+                            "/api/admin/login")
+                    || path.equals(
+                            "/api/admin/forgot-password")
+                    || path.equals(
+                            "/api/admin/verify-reset-otp")
+                    || path.equals(
+                            "/api/admin/reset-password")
+
+                    || path.equals(
+                            "/api/delivery-partners/register")
+                    || path.equals(
+                            "/api/delivery-partners/login");
         }
 
-        return "GET".equalsIgnoreCase(method)
-                && (path.equals("/api/restaurants")
-                || path.startsWith("/api/restaurants/")
-                || path.equals("/api/cuisines")
-                || path.startsWith("/api/cuisines/"));
+        /*
+         * Public GET restaurant endpoints.
+         */
+        if ("GET".equalsIgnoreCase(method)) {
+
+            if (path.equals("/api/restaurants")) {
+                return true;
+            }
+
+            if (path.equals("/api/restaurants/cuisines")) {
+                return true;
+            }
+
+            if (path.equals("/api/cuisines")
+                    || path.startsWith("/api/cuisines/")) {
+                return true;
+            }
+
+            /*
+             * IMPORTANT:
+             *
+             * /api/restaurants/nearby MUST NOT be skipped.
+             *
+             * It requires the customer's JWT because
+             * the controller needs the authenticated
+             * customer ID.
+             */
+        }
+
+        return false;
     }
 
     @Override
@@ -88,40 +144,71 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
             FilterChain filterChain)
             throws ServletException, IOException {
 
-        String header = request.getHeader("Authorization");
+        String header =
+                request.getHeader("Authorization");
 
-        if (header == null || !header.startsWith("Bearer ")) {
-            filterChain.doFilter(request, response);
+        /*
+         * No Bearer token.
+         *
+         * We do not immediately return 401 here because
+         * Spring Security will decide whether the endpoint
+         * requires authentication.
+         */
+        if (header == null
+                || !header.startsWith("Bearer ")) {
+
+            filterChain.doFilter(
+                    request,
+                    response
+            );
+
             return;
         }
 
-        String token = header.substring(7);
+        String token =
+                header.substring(7);
 
         Claims claims;
         Long userId;
         String role;
 
-        // Validate JWT and extract claims.
+        /*
+         * Validate JWT and extract claims.
+         */
         try {
-            claims = jwtService.extractClaims(token);
 
-            String subject = claims.getSubject();
-            role = claims.get("role", String.class);
+            claims =
+                    jwtService.extractClaims(token);
 
-            if (subject == null || subject.isBlank()
-                    || role == null || role.isBlank()) {
+            String subject =
+                    claims.getSubject();
+
+            role =
+                    claims.get(
+                            "role",
+                            String.class
+                    );
+
+            if (subject == null
+                    || subject.isBlank()
+                    || role == null
+                    || role.isBlank()) {
 
                 writeError(
                         response,
                         401,
                         "JWT is missing required claims"
                 );
+
                 return;
             }
 
-            userId = Long.valueOf(subject);
+            userId =
+                    Long.valueOf(subject);
 
-        } catch (JwtException | IllegalArgumentException exception) {
+        } catch (
+                JwtException
+                        | IllegalArgumentException exception) {
 
             SecurityContextHolder.clearContext();
 
@@ -132,65 +219,172 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
             );
 
             if (!response.isCommitted()) {
-                writeError(response, 401, "Invalid or expired JWT");
+
+                writeError(
+                        response,
+                        401,
+                        "Invalid or expired JWT"
+                );
             }
 
             return;
         }
 
-        String path = request.getServletPath();
+        String path =
+                request.getServletPath();
 
+        /*
+         * Determine endpoint types.
+         */
         boolean adminEndpoint =
                 path.equals("/api/admin")
                         || path.startsWith("/api/admin/");
 
         boolean ownerEndpoint =
-                path.equals("/api/restaurant-owner/food-items")
-                        || path.startsWith("/api/restaurant-owner/food-items/");
+                path.equals(
+                        "/api/restaurant-owner/food-items"
+                )
+                        || path.startsWith(
+                        "/api/restaurant-owner/food-items/"
+                );
 
         boolean deliveryPartnerEndpoint =
-                path.equals("/api/delivery-partners")
-                        || path.startsWith("/api/delivery-partners/");
+                path.equals(
+                        "/api/delivery-partners"
+                )
+                        || path.startsWith(
+                        "/api/delivery-partners/"
+                );
 
-        // Only ADMIN can access Admin endpoints.
-        if (adminEndpoint && !"ADMIN".equals(role)) {
-            SecurityContextHolder.clearContext();
-            writeError(response, 403, "Admin access required");
-            return;
-        }
+        /*
+         * ---------------------------------------------------------
+         * CHAT ENDPOINTS
+         * ---------------------------------------------------------
+         *
+         * Delivery partners use these endpoints:
+         *
+         * GET  /api/chat/delivery/conversations
+         * GET  /api/chat/conversations/{id}/messages
+         * POST /api/chat/upload-image
+         *
+         * The old filter only considered
+         * /api/delivery-partners/** as a delivery endpoint.
+         *
+         * Therefore a DELIVERY_PARTNER token was being rejected
+         * with 403 when accessing chat.
+         */
 
-        // Only RESTAURANT_OWNER can access restaurant-owner food endpoints.
-        if (ownerEndpoint && !"RESTAURANT_OWNER".equals(role)) {
-            SecurityContextHolder.clearContext();
-            writeError(response, 403, "Restaurant owner access required");
-            return;
-        }
+        boolean deliveryChatEndpoint =
+                path.equals(
+                        "/api/chat/delivery/conversations"
+                )
+                        || path.startsWith(
+                        "/api/chat/delivery/"
+                );
 
-        // Only DELIVERY_PARTNER can access delivery partner endpoints.
-        if (deliveryPartnerEndpoint
-                && !"DELIVERY_PARTNER".equals(role)) {
+        boolean chatMessagesEndpoint =
+                path.startsWith(
+                        "/api/chat/conversations/"
+                );
 
-            SecurityContextHolder.clearContext();
-            writeError(response, 403, "Delivery partner access required");
-            return;
-        }
+        boolean chatImageUploadEndpoint =
+                path.equals(
+                        "/api/chat/upload-image"
+                );
 
-        // Delivery partner tokens cannot be used outside their own endpoints.
-        if ("DELIVERY_PARTNER".equals(role)
-                && !deliveryPartnerEndpoint) {
+        boolean sharedChatEndpoint =
+                deliveryChatEndpoint
+                        || chatMessagesEndpoint
+                        || chatImageUploadEndpoint;
+
+        /*
+         * Only ADMIN can access Admin endpoints.
+         */
+        if (adminEndpoint
+                && !"ADMIN".equals(role)) {
 
             SecurityContextHolder.clearContext();
 
             writeError(
                     response,
                     403,
-                    "Delivery partner access is restricted to Delivery Partner endpoints"
+                    "Admin access required"
             );
+
             return;
         }
 
-        // Admin tokens cannot be used outside Admin endpoints.
-        if ("ADMIN".equals(role) && !adminEndpoint) {
+        /*
+         * Only RESTAURANT_OWNER can access
+         * restaurant-owner food endpoints.
+         */
+        if (ownerEndpoint
+                && !"RESTAURANT_OWNER".equals(role)) {
+
+            SecurityContextHolder.clearContext();
+
+            writeError(
+                    response,
+                    403,
+                    "Restaurant owner access required"
+            );
+
+            return;
+        }
+
+        /*
+         * Only DELIVERY_PARTNER can access
+         * delivery partner endpoints.
+         *
+         * CHAT IS ALSO ALLOWED because delivery partners
+         * need to communicate with customers.
+         */
+        if (deliveryPartnerEndpoint
+                && !"DELIVERY_PARTNER".equals(role)) {
+
+            SecurityContextHolder.clearContext();
+
+            writeError(
+                    response,
+                    403,
+                    "Delivery partner access required"
+            );
+
+            return;
+        }
+
+        /*
+         * Delivery partner tokens are allowed to access:
+         *
+         * 1. Their normal delivery-partner endpoints
+         * 2. Delivery chat endpoints
+         * 3. Shared conversation message endpoints
+         * 4. Chat image upload
+         *
+         * They are still blocked from unrelated endpoints.
+         */
+        if ("DELIVERY_PARTNER".equals(role)
+                && !deliveryPartnerEndpoint
+                && !sharedChatEndpoint) {
+
+            SecurityContextHolder.clearContext();
+
+            writeError(
+                    response,
+                    403,
+                    "Delivery partner access is restricted to Delivery Partner endpoints and chat"
+            );
+
+            return;
+        }
+
+        /*
+         * Admin tokens cannot be used
+         * outside Admin endpoints.
+         */
+        if ("ADMIN".equals(role)
+                && !adminEndpoint) {
+
             SecurityContextHolder.clearContext();
 
             writeError(
@@ -198,27 +392,41 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                     403,
                     "Admin access is restricted to Admin endpoints"
             );
+
             return;
         }
 
-        // Supported user roles.
+        /*
+         * Supported user roles.
+         */
         if (!"ADMIN".equals(role)
                 && !"RESTAURANT_OWNER".equals(role)
                 && !"CUSTOMER".equals(role)
                 && !"DELIVERY_PARTNER".equals(role)) {
 
             SecurityContextHolder.clearContext();
-            writeError(response, 403, "Unsupported user role");
+
+            writeError(
+                    response,
+                    403,
+                    "Unsupported user role"
+            );
+
             return;
         }
 
-        // Check the customer's current database status.
+        /*
+         * Check customer's current database status.
+         */
         if ("CUSTOMER".equals(role)) {
 
-            Customer customer = customerRepository.findById(userId)
-                    .orElse(null);
+            Customer customer =
+                    customerRepository
+                            .findById(userId)
+                            .orElse(null);
 
             if (customer == null) {
+
                 SecurityContextHolder.clearContext();
 
                 writeError(
@@ -226,10 +434,12 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                         401,
                         "Customer account not found"
                 );
+
                 return;
             }
 
             if (!customer.isActive()) {
+
                 SecurityContextHolder.clearContext();
 
                 writeError(
@@ -237,18 +447,23 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                         403,
                         "Your account has been blocked by Food Xpress Admin. Please contact support."
                 );
+
                 return;
             }
         }
 
-        // Check the delivery partner's current database status.
+        /*
+         * Check delivery partner's current database status.
+         */
         if ("DELIVERY_PARTNER".equals(role)) {
 
             DeliveryPartner deliveryPartner =
-                    deliveryPartnerRepository.findById(userId)
+                    deliveryPartnerRepository
+                            .findById(userId)
                             .orElse(null);
 
             if (deliveryPartner == null) {
+
                 SecurityContextHolder.clearContext();
 
                 writeError(
@@ -256,10 +471,12 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                         401,
                         "Delivery partner account not found"
                 );
+
                 return;
             }
 
             if (!deliveryPartner.isActive()) {
+
                 SecurityContextHolder.clearContext();
 
                 writeError(
@@ -267,17 +484,28 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                         403,
                         "Your delivery partner account is inactive. Please contact Food Xpress Admin."
                 );
+
                 return;
             }
         }
 
-        String authority = "ROLE_" + role;
+        /*
+         * Create authenticated Spring Security principal.
+         *
+         * The principal is the Long userId.
+         */
+        String authority =
+                "ROLE_" + role;
 
         UsernamePasswordAuthenticationToken authentication =
                 new UsernamePasswordAuthenticationToken(
                         userId,
                         null,
-                        List.of(new SimpleGrantedAuthority(authority))
+                        List.of(
+                                new SimpleGrantedAuthority(
+                                        authority
+                                )
+                        )
                 );
 
         authentication.setDetails(
@@ -285,24 +513,42 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                         .buildDetails(request)
         );
 
-        SecurityContextHolder.getContext()
-                .setAuthentication(authentication);
+        SecurityContextHolder
+                .getContext()
+                .setAuthentication(
+                        authentication
+                );
 
-        filterChain.doFilter(request, response);
+        /*
+         * Continue to controller.
+         */
+        filterChain.doFilter(
+                request,
+                response
+        );
     }
 
     private void writeError(
             HttpServletResponse response,
             int status,
-            String message) throws IOException {
+            String message)
+            throws IOException {
 
         response.setStatus(status);
-        response.setContentType("application/json");
-        response.setCharacterEncoding("UTF-8");
+
+        response.setContentType(
+                "application/json"
+        );
+
+        response.setCharacterEncoding(
+                "UTF-8"
+        );
 
         response.getWriter().write(
                 "{\"status\":" + status
-                        + ",\"message\":\"" + message + "\"}"
+                        + ",\"message\":\""
+                        + message
+                        + "\"}"
         );
     }
 }

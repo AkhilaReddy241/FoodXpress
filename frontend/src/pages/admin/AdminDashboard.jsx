@@ -44,6 +44,21 @@ function AdminDashboard() {
     { label: "Food Categories", icon: "🍽️", path: "/admin/food-categories" },
     { label: "Coupons & Offers", icon: "🎟️", path: "/admin/coupons" },
     { label: "Payments & Refunds", icon: "💳", path: "/admin/payments" },
+    {
+  label: "COD Deposits",
+  icon: "💰",
+  path: "/admin/cod-deposits",
+},
+{
+  label: "Partner Payouts",
+  icon: "💸",
+  path: "/admin/delivery-partner-payouts"},
+  {
+  label: "Delivery Partners",
+  icon: "🛵",
+  path: "/admin/delivery-partners",
+},
+  
   ];
 
   const handleNavigate = (path) => {
@@ -271,6 +286,7 @@ function AdminDashboard() {
       background: "#ffe8f3",
       path: "/admin/food-categories",
     },
+
   ];
 
   const quickActions = [
@@ -298,6 +314,25 @@ function AdminDashboard() {
       icon: "🍽️",
       path: "/admin/food-categories",
     },
+    {
+  title: "Manage COD Deposits",
+  description: "Verify or reject delivery partner deposits",
+  icon: "💰",
+  path: "/admin/cod-deposits",
+},
+
+{
+  title: "Manage Partner Payouts",
+  description: "View and process delivery partner payments",
+  icon: "💸",
+  path: "/admin/delivery-partner-payouts",
+},
+{
+  title: "Manage Delivery Partners",
+  description: "Review and approve delivery partner registrations",
+  icon: "🛵",
+  path: "/admin/delivery-partners",
+},
   ];
 
   const getOrderBadge = (status) => {

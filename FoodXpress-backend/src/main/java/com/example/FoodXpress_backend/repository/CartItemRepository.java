@@ -1,9 +1,9 @@
-
 package com.example.FoodXpress_backend.repository;
 
 import com.example.FoodXpress_backend.entity.CartItem;
 import org.springframework.data.jpa.repository.JpaRepository;
 
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
 
@@ -22,4 +22,9 @@ public interface CartItemRepository extends JpaRepository<CartItem, Long> {
     );
 
     void deleteByCustomer_Id(Long customerId);
+
+    // Used later by the scheduled abandoned-cart reminder
+    List<CartItem> findByReminderSentFalseAndUpdatedAtBefore(
+        LocalDateTime cutoff
+    );
 }

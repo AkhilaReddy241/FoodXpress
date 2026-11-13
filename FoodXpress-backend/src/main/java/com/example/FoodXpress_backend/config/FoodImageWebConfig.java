@@ -1,27 +1,33 @@
-
 package com.example.FoodXpress_backend.config;
 
-import java.nio.file.Path;
-import java.nio.file.Paths;
-
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.web.servlet.config.annotation.ResourceHandlerRegistry;
 import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;
 
+import java.nio.file.Path;
+
 @Configuration
 public class FoodImageWebConfig implements WebMvcConfigurer {
+
+    @Value("${foodxpress.upload-dir:uploads}")
+    private String uploadDirectory;
 
     @Override
     public void addResourceHandlers(ResourceHandlerRegistry registry) {
 
-        Path imageDirectory = Paths
-                .get(System.getProperty("user.dir"), "uploads")
+        Path imageDirectory = Path.of(uploadDirectory)
                 .toAbsolutePath()
-                .normalize();
+                .normalize()
+                .resolve("food-images");
 
-        String imageLocation = imageDirectory.toUri().toString();
+        String resourceLocation = imageDirectory.toUri().toString();
 
-        registry.addResourceHandler("/uploads/**")
-                .addResourceLocations(imageLocation);
+        if (!resourceLocation.endsWith("/")) {
+            resourceLocation += "/";
+        }
+
+        registry.addResourceHandler("/uploads/food-images/**")
+                .addResourceLocations(resourceLocation);
     }
 }

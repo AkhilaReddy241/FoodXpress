@@ -1,4 +1,3 @@
-
 package com.example.FoodXpress_backend.entity;
 
 import jakarta.persistence.*;
@@ -39,6 +38,16 @@ public class CustomerAddress {
     @Column(name = "default_address", nullable = false)
     private boolean defaultAddress = false;
 
+    // Map location
+    @Column(nullable = true)
+    private Double latitude;
+
+    @Column(nullable = true)
+    private Double longitude;
+
+    @Column(name = "formatted_address", length = 500)
+    private String formattedAddress;
+
     protected CustomerAddress() {
     }
 
@@ -51,7 +60,10 @@ public class CustomerAddress {
             String city,
             String state,
             String pincode,
-            boolean defaultAddress) {
+            boolean defaultAddress,
+            Double latitude,
+            Double longitude,
+            String formattedAddress) {
 
         this.customer = customer;
         this.label = label;
@@ -62,6 +74,9 @@ public class CustomerAddress {
         this.state = state;
         this.pincode = pincode;
         this.defaultAddress = defaultAddress;
+        this.latitude = latitude;
+        this.longitude = longitude;
+        this.formattedAddress = formattedAddress;
     }
 
     public Long getId() {
@@ -134,5 +149,29 @@ public class CustomerAddress {
 
     public void setDefaultAddress(boolean defaultAddress) {
         this.defaultAddress = defaultAddress;
+    }
+
+    public Double getLatitude() {
+        return latitude;
+    }
+
+    public void setLatitude(Double latitude) {
+        this.latitude = latitude;
+    }
+
+    public Double getLongitude() {
+        return longitude;
+    }
+
+    public void setLongitude(Double longitude) {
+        this.longitude = longitude;
+    }
+
+    public String getFormattedAddress() {
+        return formattedAddress;
+    }
+
+    public void setFormattedAddress(String formattedAddress) {
+        this.formattedAddress = formattedAddress;
     }
 }

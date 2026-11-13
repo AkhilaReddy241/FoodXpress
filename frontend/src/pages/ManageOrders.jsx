@@ -1,139 +1,520 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import React, {
+  useCallback,
+  useEffect,
+  useMemo,
+  useState,
+} from "react";
 import { useNavigate } from "react-router-dom";
 
-const API_BASE_URL = import.meta.env.DEV
-  ? "http://localhost:8080"
-  : "https://foodxpress-fmpb.onrender.com";
+const API_BASE_URL =
+  import.meta.env.VITE_API_BASE_URL ||
+  (import.meta.env.DEV
+    ? "http://localhost:8080"
+    : "https://foodxpress-fmpb.onrender.com");
 
-const STATUS_CLASSES = {
-  PLACED: "bg-warning text-dark",
-  NEW: "bg-warning text-dark",
-  RECEIVED: "bg-warning text-dark",
-  ORDER_PLACED: "bg-warning text-dark",
-  PENDING_PAYMENT: "bg-warning text-dark",
-  PENDING: "bg-warning text-dark",
-  PAID: "bg-primary text-white",
-  PREPARING: "bg-info text-dark",
-  OUT_FOR_DELIVERY: "bg-primary text-white",
-  DELIVERED: "bg-success text-white",
-  CANCELLED: "bg-danger text-white",
-};
+const PURPLE = "#641bc2";
+const DARK = "#351078";
 
 const STATUS_OPTIONS = {
   PREPARING: [
-    { value: "OUT_FOR_DELIVERY", label: "Out for Delivery" },
-    { value: "CANCELLED", label: "Cancel Order" },
+    {
+      value: "OUT_FOR_DELIVERY",
+      label: "Out for Delivery",
+    },
+    {
+      value: "CANCELLED",
+      label: "Cancel Order",
+    },
   ],
-  OUT_FOR_DELIVERY: [
-    { value: "DELIVERED", label: "Delivered" },
-    { value: "CANCELLED", label: "Cancel Order" },
-  ],
+
+  OUT_FOR_DELIVERY: [],
+  PICKED_UP: [],
+  ON_THE_WAY: [],
+  DELIVERED: [],
+  CANCELLED: [],
 };
 
 const FILTER_OPTIONS = [
   { value: "ALL", label: "All Orders" },
-  { value: "NEW", label: "New Orders" },
-  { value: "PAID", label: "Paid" },
+  { value: "PLACED", label: "New Orders" },
   { value: "PREPARING", label: "Preparing" },
-  { value: "OUT_FOR_DELIVERY", label: "Out for Delivery" },
-  { value: "DELIVERED", label: "Delivered" },
-  { value: "CANCELLED", label: "Cancelled" },
-  { value: "PENDING_PAYMENT", label: "Awaiting Payment" },
+  {
+    value: "OUT_FOR_DELIVERY",
+    label: "Out for Delivery",
+  },
+  {
+    value: "PICKED_UP",
+    label: "Picked Up",
+  },
+  {
+    value: "ON_THE_WAY",
+    label: "On the Way",
+  },
+  {
+    value: "DELIVERED",
+    label: "Delivered",
+  },
+  {
+    value: "CANCELLED",
+    label: "Cancelled",
+  },
 ];
 
-function getOrderId(order) {
-  return order?.id ?? order?.orderId ?? null;
-}
-
-function normalizeStatus(status) {
-  return String(status || "UNKNOWN")
+function normalizeStatus(value) {
+  return String(value || "")
     .trim()
     .toUpperCase()
-    .replaceAll(" ", "_")
-    .replaceAll("-", "_");
+    .replace(/[\s-]+/g, "_");
+}
+
+/*
+ * Detect COD from all common response formats.
+ */
+function isCodOrder(order) {
+  const paymentMethod = normalizeStatus(
+    order?.paymentMethod ??
+      order?.paymentType ??
+      order?.method ??
+      order?.payment?.method ??
+      order?.payment?.paymentMethod
+  );
+
+  return [
+    "COD",
+    "CASH",
+    "CASH_ON_DELIVERY",
+    "CASHDELIVERY",
+    "CASH_ON_DELIVERY_PAYMENT",
+  ].includes(paymentMethod);
+}
+
+/*
+ * Online-payment pending statuses.
+ */
+function isPaymentPending(status) {
+  return [
+    "PENDING_PAYMENT",
+    "PAYMENT_PENDING",
+    "PENDING",
+  ].includes(normalizeStatus(status));
+}
+
+/*
+ * Determine whether the restaurant can
+ * Accept / Reject this order.
+ *
+ * COD orders are actionable even if the backend
+ * status says PENDING_PAYMENT/PAYMENT_PENDING/PENDING.
+ */
+function isActionableNewOrder(order) {
+  const status = normalizeStatus(order?.status);
+
+  /*
+   * Once accepted or handed over, restaurant
+   * must not show Accept / Reject.
+   */
+  if (
+    [
+      "PREPARING",
+      "OUT_FOR_DELIVERY",
+      "PICKED_UP",
+      "ON_THE_WAY",
+      "DELIVERED",
+      "CANCELLED",
+    ].includes(status)
+  ) {
+    return false;
+  }
+
+  /*
+   * COD orders:
+   * Payment does NOT need to be completed online.
+   */
+  if (isCodOrder(order)) {
+    return [
+      "PLACED",
+      "NEW",
+      "RECEIVED",
+      "ORDER_PLACED",
+      "PENDING_PAYMENT",
+      "PAYMENT_PENDING",
+      "PENDING",
+      "PAID",
+      "PAYMENT_SUCCESS",
+      "PAYMENT_COMPLETED",
+    ].includes(status);
+  }
+
+  /*
+   * Online orders:
+   * Only allow action after successful payment
+   * or a normal new-order status.
+   */
+  return [
+    "PLACED",
+    "NEW",
+    "RECEIVED",
+    "ORDER_PLACED",
+    "PAID",
+    "PAYMENT_SUCCESS",
+    "PAYMENT_COMPLETED",
+  ].includes(status);
 }
 
 function formatStatus(status) {
-  if (!status) return "Unknown";
-
   const normalized = normalizeStatus(status);
 
+  const labels = {
+    PLACED: "New Order",
+    NEW: "New Order",
+    RECEIVED: "New Order",
+    ORDER_PLACED: "New Order",
+
+    PENDING_PAYMENT: "Awaiting Payment",
+    PAYMENT_PENDING: "Awaiting Payment",
+    PENDING: "Awaiting Payment",
+
+    PAID: "Paid",
+    PAYMENT_SUCCESS: "Payment Successful",
+    PAYMENT_COMPLETED: "Payment Completed",
+
+    PREPARING: "Preparing",
+    OUT_FOR_DELIVERY: "Out for Delivery",
+    PICKED_UP: "Picked Up",
+    ON_THE_WAY: "On the Way",
+    DELIVERED: "Delivered",
+    CANCELLED: "Cancelled",
+  };
+
+  if (labels[normalized]) {
+    return labels[normalized];
+  }
+
+  return normalized
+    .toLowerCase()
+    .replace(/_/g, " ")
+    .replace(/\b\w/g, (letter) =>
+      letter.toUpperCase()
+    );
+}
+
+/*
+ * COD + payment-pending status means:
+ * customer has selected cash payment,
+ * so this is a NEW ORDER for restaurant action.
+ */
+function formatOrderStatus(order) {
   if (
-    ["PLACED", "NEW", "RECEIVED", "ORDER_PLACED"].includes(normalized)
+    isCodOrder(order) &&
+    isPaymentPending(order?.status)
   ) {
     return "New Order";
   }
 
-  return normalized
-    .split("_")
-    .map((word) => word.charAt(0) + word.slice(1).toLowerCase())
-    .join(" ");
+  return formatStatus(order?.status);
 }
 
-function formatDate(date) {
-  if (!date) return "Not available";
+function getStatusClass(status) {
+  const normalized = normalizeStatus(status);
 
-  const parsedDate = new Date(date);
+  if (
+    [
+      "PLACED",
+      "NEW",
+      "RECEIVED",
+      "ORDER_PLACED",
+    ].includes(normalized)
+  ) {
+    return "status-new";
+  }
 
-  return Number.isNaN(parsedDate.getTime())
-    ? "Not available"
-    : parsedDate.toLocaleString();
+  if (
+    [
+      "PENDING_PAYMENT",
+      "PAYMENT_PENDING",
+      "PENDING",
+    ].includes(normalized)
+  ) {
+    return "status-pending";
+  }
+
+  if (
+    [
+      "PAID",
+      "PAYMENT_SUCCESS",
+      "PAYMENT_COMPLETED",
+    ].includes(normalized)
+  ) {
+    return "status-paid";
+  }
+
+  if (normalized === "PREPARING") {
+    return "status-preparing";
+  }
+
+  if (normalized === "OUT_FOR_DELIVERY") {
+    return "status-out";
+  }
+
+  if (
+    normalized === "PICKED_UP" ||
+    normalized === "ON_THE_WAY"
+  ) {
+    return "status-delivery";
+  }
+
+  if (normalized === "DELIVERED") {
+    return "status-delivered";
+  }
+
+  if (normalized === "CANCELLED") {
+    return "status-cancelled";
+  }
+
+  return "status-default";
 }
 
-function formatMoney(value) {
-  const amount = Number(value ?? 0);
-  return Number.isFinite(amount) ? amount.toFixed(2) : "0.00";
+function getToken() {
+  return (
+    localStorage.getItem("restaurantOwnerToken") ||
+    sessionStorage.getItem("restaurantOwnerToken")
+  );
 }
 
-function getOrderItems(order) {
-  return Array.isArray(order?.items) ? order.items : [];
+function getOrderId(order) {
+  return (
+    order?.id ??
+    order?.orderId ??
+    order?.orderID
+  );
 }
 
-function ManageOrders() {
+function getItems(order) {
+  if (Array.isArray(order?.items)) {
+    return order.items;
+  }
+
+  if (Array.isArray(order?.orderItems)) {
+    return order.orderItems;
+  }
+
+  return [];
+}
+
+function getFoodName(item) {
+  return (
+    item?.foodName ||
+    item?.foodItemName ||
+    item?.name ||
+    item?.food?.name ||
+    `Food #${item?.foodId ?? ""}`
+  );
+}
+
+function getQuantity(item) {
+  return (
+    item?.quantity ??
+    item?.qty ??
+    1
+  );
+}
+
+function getItemPrice(item) {
+  return Number(
+    item?.price ??
+      item?.unitPrice ??
+      item?.foodPrice ??
+      item?.food?.price ??
+      0
+  );
+}
+
+function getSubtotal(order) {
+  if (
+    order?.subtotal !== undefined &&
+    order?.subtotal !== null
+  ) {
+    return Number(order.subtotal);
+  }
+
+  if (
+    order?.subTotal !== undefined &&
+    order?.subTotal !== null
+  ) {
+    return Number(order.subTotal);
+  }
+
+  return getItems(order).reduce(
+    (sum, item) =>
+      sum +
+      getItemPrice(item) *
+        Number(getQuantity(item)),
+    0
+  );
+}
+
+function getDiscount(order) {
+  return Number(
+    order?.discount ??
+      order?.discountAmount ??
+      0
+  );
+}
+
+function getTotal(order) {
+  if (
+    order?.totalAmount !== undefined &&
+    order?.totalAmount !== null
+  ) {
+    return Number(order.totalAmount);
+  }
+
+  if (
+    order?.total !== undefined &&
+    order?.total !== null
+  ) {
+    return Number(order.total);
+  }
+
+  return getSubtotal(order) - getDiscount(order);
+}
+
+function getCustomerName(order) {
+  return (
+    order?.customerName ||
+    order?.customer?.name ||
+    order?.customer?.fullName ||
+    "Customer"
+  );
+}
+
+function getCustomerEmail(order) {
+  return (
+    order?.customerEmail ||
+    order?.customer?.email ||
+    "Not available"
+  );
+}
+
+function getCustomerPhone(order) {
+  return (
+    order?.customerPhone ||
+    order?.deliveryPhone ||
+    order?.phone ||
+    order?.customer?.phone ||
+    "Not available"
+  );
+}
+
+function getDeliveryAddress(order) {
+  return (
+    order?.deliveryAddress ||
+    order?.address ||
+    order?.customerAddress ||
+    "Not available"
+  );
+}
+
+function getPaymentMethod(order) {
+  return (
+    order?.paymentMethod ||
+    order?.paymentType ||
+    order?.method ||
+    order?.payment?.method ||
+    order?.payment?.paymentMethod ||
+    "Not available"
+  );
+}
+
+function getPaymentStatus(order) {
+  return (
+    order?.paymentStatus ||
+    order?.payment?.status ||
+    "Not available"
+  );
+}
+
+function getDeliveryPartnerName(order) {
+  return (
+    order?.deliveryPartnerName ||
+    order?.deliveryPartner?.name ||
+    order?.deliveryPartner?.fullName ||
+    "Not assigned"
+  );
+}
+
+function getDeliveryPartnerPhone(order) {
+  return (
+    order?.deliveryPartnerPhone ||
+    order?.deliveryPartner?.phone ||
+    "Not available"
+  );
+}
+
+function getCreatedAt(order) {
+  return (
+    order?.createdAt ||
+    order?.orderDate ||
+    order?.createdDate ||
+    null
+  );
+}
+
+function formatDate(value) {
+  if (!value) {
+    return "Not available";
+  }
+
+  try {
+    return new Date(value).toLocaleString();
+  } catch {
+    return String(value);
+  }
+}
+
+export default function ManageOrders() {
   const navigate = useNavigate();
 
   const [orders, setOrders] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
-  const [updatingOrderId, setUpdatingOrderId] = useState(null);
-  const [successMessage, setSuccessMessage] = useState("");
+  const [success, setSuccess] = useState("");
 
   const [searchTerm, setSearchTerm] = useState("");
-  const [statusFilter, setStatusFilter] = useState("ALL");
+  const [statusFilter, setStatusFilter] =
+    useState("ALL");
 
-  const [viewOrderId, setViewOrderId] = useState(null);
-  const [orderDetails, setOrderDetails] = useState(null);
-  const [viewLoading, setViewLoading] = useState(false);
-  const [viewError, setViewError] = useState("");
+  const [updatingOrderId, setUpdatingOrderId] =
+    useState(null);
 
-  const getToken = () => localStorage.getItem("restaurantOwnerToken");
+  const [customerModalOpen, setCustomerModalOpen] =
+    useState(false);
 
-  const handleAuthenticationError = useCallback(() => {
-    localStorage.removeItem("restaurantOwnerToken");
-    localStorage.removeItem("restaurantOwnerId");
-    localStorage.removeItem("restaurantOwnerName");
-    localStorage.removeItem("restaurantOwnerEmail");
-    navigate("/restaurant/login");
-  }, [navigate]);
+  const [customerDetails, setCustomerDetails] =
+    useState(null);
+
+  const [deliveryModalOpen, setDeliveryModalOpen] =
+    useState(false);
+
+  const [deliveryDetails, setDeliveryDetails] =
+    useState(null);
 
   const fetchOrders = useCallback(async () => {
     const token = getToken();
 
     if (!token) {
-      handleAuthenticationError();
+      navigate("/restaurant/login");
       return;
     }
 
-    setLoading(true);
-    setError("");
-    setSuccessMessage("");
-
     try {
+      setLoading(true);
+      setError("");
+
       const response = await fetch(
         `${API_BASE_URL}/api/restaurant-owners/orders`,
         {
           method: "GET",
-          cache: "no-store",
           headers: {
             Authorization: `Bearer ${token}`,
             Accept: "application/json",
@@ -141,1226 +522,1946 @@ function ManageOrders() {
         }
       );
 
-      if (response.status === 401) {
-        handleAuthenticationError();
-        return;
-      }
-
-      if (response.status === 403) {
-        throw new Error(
-          "Access denied. Please check your restaurant-owner permissions and backend security configuration."
+      if (
+        response.status === 401 ||
+        response.status === 403
+      ) {
+        localStorage.removeItem(
+          "restaurantOwnerToken"
         );
-      }
 
-      const responseText = await response.text();
-      let data;
+        sessionStorage.removeItem(
+          "restaurantOwnerToken"
+        );
 
-      try {
-        data = responseText ? JSON.parse(responseText) : [];
-      } catch {
-        throw new Error("The backend returned an invalid orders response.");
+        navigate("/restaurant/login");
+        return;
       }
 
       if (!response.ok) {
         throw new Error(
-          data?.message ||
-            data?.detail ||
-            data?.error ||
-            responseText ||
-            `Unable to load orders (${response.status}).`
+          `Failed to fetch orders (${response.status})`
         );
       }
 
-      if (!Array.isArray(data)) {
-        throw new Error("The backend returned an unexpected orders response.");
+      const data = await response.json();
+
+      let orderList = [];
+
+      if (Array.isArray(data)) {
+        orderList = data;
+      } else if (Array.isArray(data.orders)) {
+        orderList = data.orders;
+      } else if (
+        Array.isArray(data.restaurantOrders)
+      ) {
+        orderList = data.restaurantOrders;
+      } else if (Array.isArray(data.content)) {
+        orderList = data.content;
       }
 
-      setOrders(
-        data.map((order) => ({
-          ...order,
-          id: getOrderId(order),
-          status: normalizeStatus(order.status),
-        }))
-      );
+      setOrders(orderList);
     } catch (err) {
+      console.error(
+        "Failed to fetch restaurant orders:",
+        err
+      );
+
       setError(
-        err.message ||
-          "Unable to connect to the backend. Make sure Spring Boot is running."
+        err?.message ||
+          "Unable to load restaurant orders."
       );
     } finally {
       setLoading(false);
     }
-  }, [handleAuthenticationError]);
+  }, [navigate]);
 
   useEffect(() => {
     fetchOrders();
   }, [fetchOrders]);
 
-  const fetchOrderDetails = async (orderId) => {
+  const filteredOrders = useMemo(() => {
+    const search = searchTerm
+      .trim()
+      .toLowerCase();
+
+    return orders.filter((order) => {
+      const orderId = String(
+        getOrderId(order) ?? ""
+      ).toLowerCase();
+
+      const itemsText = getItems(order)
+        .map((item) =>
+          getFoodName(item)
+        )
+        .join(" ")
+        .toLowerCase();
+
+      const customerText =
+        getCustomerName(order)
+          .toLowerCase();
+
+      const matchesSearch =
+        !search ||
+        orderId.includes(search) ||
+        itemsText.includes(search) ||
+        customerText.includes(search);
+
+      const status =
+        normalizeStatus(order?.status);
+
+      const matchesStatus =
+        statusFilter === "ALL" ||
+        status === statusFilter ||
+        (
+          statusFilter === "PLACED" &&
+          [
+            "NEW",
+            "RECEIVED",
+            "ORDER_PLACED",
+            "PLACED",
+          ].includes(status)
+        );
+
+      return (
+        matchesSearch &&
+        matchesStatus
+      );
+    });
+  }, [
+    orders,
+    searchTerm,
+    statusFilter,
+  ]);
+
+  const statistics = useMemo(() => {
+    let newOrders = 0;
+    let preparing = 0;
+    let outForDelivery = 0;
+    let delivered = 0;
+    let cancelled = 0;
+
+    orders.forEach((order) => {
+      const status =
+        normalizeStatus(order?.status);
+
+      if (
+        isActionableNewOrder(order)
+      ) {
+        newOrders++;
+      } else if (
+        status === "PREPARING"
+      ) {
+        preparing++;
+      } else if (
+        status === "OUT_FOR_DELIVERY" ||
+        status === "PICKED_UP" ||
+        status === "ON_THE_WAY"
+      ) {
+        outForDelivery++;
+      } else if (
+        status === "DELIVERED"
+      ) {
+        delivered++;
+      } else if (
+        status === "CANCELLED"
+      ) {
+        cancelled++;
+      }
+    });
+
+    return {
+      total: orders.length,
+      newOrders,
+      preparing,
+      outForDelivery,
+      delivered,
+      cancelled,
+    };
+  }, [orders]);
+
+  const openCustomerDetails = (order) => {
+    setCustomerDetails(order);
+    setCustomerModalOpen(true);
+  };
+
+  const openDeliveryDetails = (order) => {
+    setDeliveryDetails(order);
+    setDeliveryModalOpen(true);
+  };
+
+  const handleStatusChange = async (
+    orderId,
+    newStatus
+  ) => {
+    if (orderId == null) {
+      return;
+    }
+
     const token = getToken();
 
     if (!token) {
-      handleAuthenticationError();
+      navigate("/restaurant/login");
       return;
     }
 
-    setViewOrderId(orderId);
-    setOrderDetails(null);
-    setViewError("");
-    setViewLoading(true);
+    const currentOrder = orders.find(
+      (order) =>
+        String(getOrderId(order)) ===
+        String(orderId)
+    );
 
-    try {
-      const response = await fetch(
-        `${API_BASE_URL}/api/restaurant-owners/orders/${encodeURIComponent(
-          orderId
-        )}/details`,
-        {
-          method: "GET",
-          cache: "no-store",
-          headers: {
-            Authorization: `Bearer ${token}`,
-            Accept: "application/json",
-          },
-        }
+    const currentStatus =
+      normalizeStatus(
+        currentOrder?.status
       );
 
-      if (response.status === 401) {
-        handleAuthenticationError();
-        return;
-      }
-
-      const responseText = await response.text();
-      let data = {};
-
-      if (responseText) {
-        try {
-          data = JSON.parse(responseText);
-        } catch {
-          data = {};
-        }
-      }
-
-      if (!response.ok) {
-        throw new Error(
-          data.message ||
-            data.detail ||
-            data.error ||
-            responseText ||
-            `Unable to load order details (${response.status}).`
-        );
-      }
-
-      setOrderDetails(data);
-    } catch (err) {
-      setViewError(err.message || "Unable to load order details.");
-    } finally {
-      setViewLoading(false);
-    }
-  };
-
-  const closeOrderDetails = () => {
-    setViewOrderId(null);
-    setOrderDetails(null);
-    setViewError("");
-    setViewLoading(false);
-  };
-
-  const handleStatusChange = async (orderId, newStatus) => {
-    if (orderId == null || String(orderId).trim() === "") {
-      setError("Cannot update this order because its ID is missing.");
+    /*
+     * Once restaurant sends the order
+     * to delivery, restaurant cannot
+     * change the order anymore.
+     */
+    if (
+      [
+        "OUT_FOR_DELIVERY",
+        "PICKED_UP",
+        "ON_THE_WAY",
+        "DELIVERED",
+      ].includes(currentStatus)
+    ) {
+      setError(
+        "This order is now controlled by the delivery partner."
+      );
       return;
     }
 
-    if (updatingOrderId !== null) return;
+    /*
+     * Restaurant can never mark
+     * an order as delivered.
+     */
+    if (newStatus === "DELIVERED") {
+      setError(
+        "Restaurant cannot mark an order as delivered."
+      );
+      return;
+    }
 
+    /*
+     * Confirm rejection/cancellation.
+     */
     if (
       newStatus === "CANCELLED" &&
       !window.confirm(
-        `Are you sure you want to reject or cancel order #${orderId}?`
+        "Are you sure you want to reject/cancel this order?"
       )
     ) {
       return;
     }
 
-    const token = getToken();
-
-    if (!token) {
-      handleAuthenticationError();
-      return;
-    }
-
-    setUpdatingOrderId(orderId);
-    setError("");
-    setSuccessMessage("");
-
     try {
+      setUpdatingOrderId(orderId);
+      setError("");
+      setSuccess("");
+
       const response = await fetch(
-        `${API_BASE_URL}/api/restaurant-owners/orders/${encodeURIComponent(
-          orderId
-        )}/status`,
+        `${API_BASE_URL}/api/restaurant-owners/orders/${orderId}/status`,
         {
           method: "PATCH",
           headers: {
             Authorization: `Bearer ${token}`,
-            "Content-Type": "application/json",
+            "Content-Type":
+              "application/json",
             Accept: "application/json",
           },
-          body: JSON.stringify({ status: newStatus }),
+          body: JSON.stringify({
+            status: newStatus,
+          }),
         }
       );
 
-      if (response.status === 401) {
-        handleAuthenticationError();
+      if (
+        response.status === 401 ||
+        response.status === 403
+      ) {
+        localStorage.removeItem(
+          "restaurantOwnerToken"
+        );
+
+        sessionStorage.removeItem(
+          "restaurantOwnerToken"
+        );
+
+        navigate("/restaurant/login");
         return;
       }
 
-      const responseText = await response.text();
-      let updatedOrder = {};
+      if (!response.ok) {
+        let message =
+          `Failed to update order (${response.status})`;
 
-      if (responseText) {
         try {
-          updatedOrder = JSON.parse(responseText);
+          const errorData =
+            await response.json();
+
+          message =
+            errorData?.message ||
+            errorData?.error ||
+            message;
         } catch {
-          updatedOrder = {};
+          // Ignore invalid error JSON.
         }
+
+        throw new Error(message);
       }
 
-      if (!response.ok) {
-        if (response.status === 403) {
-          throw new Error(
-            "You are not authorized to update this order. Check your backend permissions."
-          );
-        }
-
-        throw new Error(
-          updatedOrder.message ||
-            updatedOrder.detail ||
-            updatedOrder.error ||
-            responseText ||
-            `Unable to update order (${response.status}).`
+      if (
+        newStatus === "PREPARING"
+      ) {
+        setSuccess(
+          `Order #${orderId} accepted. Food preparation has started.`
+        );
+      } else if (
+        newStatus === "OUT_FOR_DELIVERY"
+      ) {
+        setSuccess(
+          `Order #${orderId} is now out for delivery.`
+        );
+      } else if (
+        newStatus === "CANCELLED"
+      ) {
+        setSuccess(
+          `Order #${orderId} has been rejected or cancelled.`
+        );
+      } else {
+        setSuccess(
+          `Order #${orderId} status updated successfully.`
         );
       }
 
-      const savedStatus = normalizeStatus(
-        updatedOrder.status || newStatus
-      );
-
+      /*
+       * Immediately update the UI.
+       */
       setOrders((previousOrders) =>
         previousOrders.map((order) =>
-          String(getOrderId(order)) === String(orderId)
+          String(getOrderId(order)) ===
+          String(orderId)
             ? {
                 ...order,
-                ...updatedOrder,
-                id: orderId,
-                status: savedStatus,
+                status: newStatus,
               }
             : order
         )
       );
 
-      const messages = {
-        PREPARING: `Order #${orderId} accepted. Food preparation has started.`,
-        OUT_FOR_DELIVERY: `Order #${orderId} is now out for delivery.`,
-        DELIVERED: `Order #${orderId} has been delivered.`,
-        CANCELLED: `Order #${orderId} has been rejected or cancelled.`,
-      };
-
-      setSuccessMessage(
-        messages[savedStatus] ||
-          `Order #${orderId} updated to ${formatStatus(savedStatus)}.`
+      /*
+       * Then get the latest backend data.
+       */
+      await fetchOrders();
+    } catch (err) {
+      console.error(
+        "Order status update failed:",
+        err
       );
 
-      if (String(viewOrderId) === String(orderId) && orderDetails) {
-        setOrderDetails((previous) =>
-          previous
-            ? { ...previous, ...updatedOrder, status: savedStatus }
-            : previous
-        );
-      }
-    } catch (err) {
-      setError(err.message || "Unable to update the order status.");
-      await fetchOrders();
+      setError(
+        err?.message ||
+          "Unable to update order status."
+      );
     } finally {
       setUpdatingOrderId(null);
     }
   };
 
-  const restaurantName =
-    localStorage.getItem("restaurantOwnerName") || "Restaurant Dashboard";
+  const renderActionCell = (order) => {
+    const orderId = getOrderId(order);
 
-  const filteredOrders = useMemo(() => {
-    const query = searchTerm.trim().toLowerCase();
+    const status =
+      normalizeStatus(order?.status);
 
-    return orders.filter((order) => {
-      const orderId = String(getOrderId(order) ?? "").toLowerCase();
-      const status = normalizeStatus(order.status);
+    const isUpdating =
+      String(updatingOrderId) ===
+      String(orderId);
 
-      const itemNames = getOrderItems(order)
-        .map((item) => String(item.foodName ?? item.name ?? ""))
-        .join(" ")
-        .toLowerCase();
+    const newOrder =
+      isActionableNewOrder(order);
 
-      const matchesSearch =
-        !query ||
-        orderId.includes(query) ||
-        itemNames.includes(query);
+    const paymentPending =
+      isPaymentPending(status);
 
-      let matchesStatus = true;
+    const preparing =
+      status === "PREPARING";
 
-      if (statusFilter === "NEW") {
-        matchesStatus = [
-          "PLACED",
-          "NEW",
-          "RECEIVED",
-          "ORDER_PLACED",
-        ].includes(status);
-      } else if (statusFilter === "PENDING_PAYMENT") {
-        matchesStatus = ["PENDING_PAYMENT", "PENDING"].includes(status);
-      } else if (statusFilter === "ALL") {
-        matchesStatus = true;
-      } else {
-        matchesStatus = status === statusFilter;
-      }
+    const deliveryControlled =
+      [
+        "OUT_FOR_DELIVERY",
+        "PICKED_UP",
+        "ON_THE_WAY",
+      ].includes(status);
 
-      return matchesSearch && matchesStatus;
-    });
-  }, [orders, searchTerm, statusFilter]);
+    const finalStatus =
+      [
+        "DELIVERED",
+        "CANCELLED",
+      ].includes(status);
 
-  const pendingPaymentOrders = orders.filter((order) =>
-    ["PENDING_PAYMENT", "PENDING"].includes(normalizeStatus(order.status))
-  ).length;
+    if (orderId == null) {
+      return (
+        <span className="text-muted">
+          No order ID
+        </span>
+      );
+    }
 
-  const newOrders = orders.filter((order) =>
-    ["PLACED", "NEW", "RECEIVED", "ORDER_PLACED"].includes(
-      normalizeStatus(order.status)
-    )
-  ).length;
+    /*
+     * ======================================================
+     * ACCEPT / REJECT
+     * ======================================================
+     *
+     * This is checked FIRST.
+     *
+     * Therefore:
+     *
+     * COD + PENDING_PAYMENT
+     * COD + PAYMENT_PENDING
+     * COD + PENDING
+     *
+     * will show Accept / Reject.
+     */
+    if (newOrder) {
+      return (
+        <div className="restaurant-action-buttons">
+          <button
+            type="button"
+            className="btn-accept-order"
+            disabled={isUpdating}
+            onClick={() =>
+              handleStatusChange(
+                orderId,
+                "PREPARING"
+              )
+            }
+          >
+            {isUpdating
+              ? "Accepting..."
+              : "✓ Accept Order"}
+          </button>
 
-  const paidOrders = orders.filter((order) =>
-    ["PAID", "PREPARING", "OUT_FOR_DELIVERY", "DELIVERED"].includes(
-      normalizeStatus(order.status)
-    )
-  ).length;
+          <button
+            type="button"
+            className="btn-reject-order"
+            disabled={isUpdating}
+            onClick={() =>
+              handleStatusChange(
+                orderId,
+                "CANCELLED"
+              )
+            }
+          >
+            {isUpdating
+              ? "Updating..."
+              : "✕ Reject Order"}
+          </button>
+        </div>
+      );
+    }
 
-  const preparingOrders = orders.filter(
-    (order) => normalizeStatus(order.status) === "PREPARING"
-  ).length;
+    /*
+     * ======================================================
+     * ONLINE PAYMENT PENDING
+     * ======================================================
+     *
+     * This is reached ONLY when the order is not
+     * actionable.
+     *
+     * COD was already handled above.
+     */
+    if (paymentPending) {
+      return (
+        <div className="payment-pending-box">
+          <span className="badge bg-warning text-dark">
+            Awaiting Payment
+          </span>
 
-  const outForDeliveryOrders = orders.filter(
-    (order) => normalizeStatus(order.status) === "OUT_FOR_DELIVERY"
-  ).length;
+          <small>
+            Restaurant action is unavailable
+            until online payment is completed.
+          </small>
+        </div>
+      );
+    }
 
-  const deliveredOrders = orders.filter(
-    (order) => normalizeStatus(order.status) === "DELIVERED"
-  ).length;
+    /*
+     * ======================================================
+     * PREPARING
+     * ======================================================
+     *
+     * Restaurant can:
+     * - Send Out for Delivery
+     * - Cancel
+     */
+    if (preparing) {
+      const options =
+        STATUS_OPTIONS.PREPARING;
 
-  const detailCardStyle = {
-    backgroundColor: "#ffffff",
-    color: "#212529",
-    border: "1px solid #dee2e6",
-    borderRadius: "12px",
-    padding: "20px",
-    height: "100%",
-    boxShadow: "0 2px 8px rgba(0,0,0,0.04)",
+      return (
+        <div className="status-action-area">
+          <select
+            className="status-select"
+            value=""
+            disabled={isUpdating}
+            onChange={(event) => {
+              const value =
+                event.target.value;
+
+              if (value) {
+                handleStatusChange(
+                  orderId,
+                  value
+                );
+              }
+            }}
+          >
+            <option value="">
+              {isUpdating
+                ? "Updating..."
+                : "Update Status"}
+            </option>
+
+            {options.map((option) => (
+              <option
+                key={option.value}
+                value={option.value}
+              >
+                {option.label}
+              </option>
+            ))}
+          </select>
+        </div>
+      );
+    }
+
+    /*
+     * ======================================================
+     * DELIVERY PARTNER CONTROL
+     * ======================================================
+     *
+     * Restaurant has no buttons after
+     * OUT_FOR_DELIVERY.
+     */
+    if (deliveryControlled) {
+      return (
+        <div className="delivery-controlled-box">
+          <span className="delivery-control-badge">
+            Delivery Partner
+          </span>
+
+          <small>
+            Delivery partner is handling
+            this order.
+          </small>
+        </div>
+      );
+    }
+
+    /*
+     * ======================================================
+     * FINAL STATUS
+     * ======================================================
+     */
+    if (finalStatus) {
+      return (
+        <span className="final-status-text">
+          {status === "DELIVERED"
+            ? "Completed"
+            : "Cancelled"}
+        </span>
+      );
+    }
+
+    return (
+      <span className="text-muted">
+        No action available
+      </span>
+    );
   };
 
   return (
-    <div className="manage-orders-responsive container-fluid bg-light min-vh-100 p-0">
+    <div className="manage-orders-page">
       <style>{`
-        .manage-orders-responsive {
-          width: 100%;
-          max-width: 100%;
-          overflow-x: hidden;
+        * {
+          box-sizing: border-box;
         }
 
-        .manage-orders-responsive .table-responsive {
+        .manage-orders-page {
+          min-height: 100vh;
+          background: #f7f5fb;
+          color: #222;
+          font-family:
+            Inter,
+            -apple-system,
+            BlinkMacSystemFont,
+            "Segoe UI",
+            sans-serif;
+        }
+
+        .restaurant-navbar {
+          background: linear-gradient(
+            135deg,
+            ${DARK},
+            ${PURPLE}
+          );
+          color: white;
+          padding: 16px 28px;
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          gap: 20px;
+          position: sticky;
+          top: 0;
+          z-index: 100;
+          box-shadow:
+            0 4px 18px rgba(53, 16, 120, 0.25);
+        }
+
+        .brand {
+          color: white;
+          text-decoration: none;
+          font-size: 22px;
+          font-weight: 800;
+          white-space: nowrap;
+        }
+
+        .nav-links {
+          display: flex;
+          align-items: center;
+          gap: 10px;
+          flex-wrap: wrap;
+        }
+
+        .nav-links button {
+          border: none;
+          background: transparent;
+          color: white;
+          padding: 9px 13px;
+          border-radius: 8px;
+          cursor: pointer;
+          font-size: 14px;
+          font-weight: 600;
+        }
+
+        .nav-links button:hover {
+          background: rgba(255, 255, 255, 0.14);
+        }
+
+        .page-container {
+          width: 100%;
+          max-width: 1700px;
+          margin: 0 auto;
+          padding: 28px;
+        }
+
+        .page-header {
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
+          gap: 20px;
+          margin-bottom: 24px;
+        }
+
+        .page-header h1 {
+          margin: 0;
+          color: ${DARK};
+          font-size: 30px;
+        }
+
+        .page-header p {
+          margin: 7px 0 0;
+          color: #666;
+        }
+
+        .refresh-btn {
+          border: 1px solid ${PURPLE};
+          background: white;
+          color: ${PURPLE};
+          border-radius: 9px;
+          padding: 10px 16px;
+          font-weight: 700;
+          cursor: pointer;
+        }
+
+        .refresh-btn:hover {
+          background: ${PURPLE};
+          color: white;
+        }
+
+        .refresh-btn:disabled {
+          opacity: 0.6;
+          cursor: not-allowed;
+        }
+
+        .alert {
+          padding: 13px 16px;
+          border-radius: 9px;
+          margin-bottom: 18px;
+          font-weight: 600;
+        }
+
+        .alert-error {
+          background: #fdecec;
+          color: #9d1c1c;
+          border: 1px solid #f2bcbc;
+        }
+
+        .alert-success {
+          background: #ecf9ef;
+          color: #176b2d;
+          border: 1px solid #b9e3c3;
+        }
+
+        .stats-grid {
+          display: grid;
+          grid-template-columns:
+            repeat(6, minmax(140px, 1fr));
+          gap: 14px;
+          margin-bottom: 24px;
+        }
+
+        .stat-card {
+          background: white;
+          border-radius: 12px;
+          padding: 18px;
+          border: 1px solid #e9e3f2;
+          box-shadow:
+            0 4px 14px rgba(53, 16, 120, 0.06);
+        }
+
+        .stat-label {
+          color: #777;
+          font-size: 13px;
+          font-weight: 600;
+          margin-bottom: 8px;
+        }
+
+        .stat-value {
+          color: ${DARK};
+          font-size: 26px;
+          font-weight: 800;
+        }
+
+        .filters-card {
+          background: white;
+          border-radius: 12px;
+          padding: 18px;
+          border: 1px solid #e9e3f2;
+          margin-bottom: 20px;
+        }
+
+        .filters-grid {
+          display: grid;
+          grid-template-columns:
+            minmax(280px, 1.2fr)
+            minmax(240px, 1fr);
+          gap: 20px;
+        }
+
+        .filter-group label {
+          display: block;
+          font-size: 14px;
+          font-weight: 700;
+          color: #333;
+          margin-bottom: 8px;
+        }
+
+        .filter-input,
+        .filter-select {
+          width: 100%;
+          min-height: 48px;
+          border: 1px solid #d8d8df;
+          border-radius: 9px;
+          padding: 10px 13px;
+          font-size: 16px;
+          outline: none;
+          background: white;
+        }
+
+        .filter-input:focus,
+        .filter-select:focus {
+          border-color: ${PURPLE};
+          box-shadow:
+            0 0 0 3px rgba(100, 27, 194, 0.10);
+        }
+
+        .table-card {
+          background: white;
+          border-radius: 12px;
+          border: 1px solid #e9e3f2;
+          overflow: hidden;
+          box-shadow:
+            0 4px 14px rgba(53, 16, 120, 0.05);
+        }
+
+        .table-wrapper {
           width: 100%;
           overflow-x: auto;
-          -webkit-overflow-scrolling: touch;
         }
 
-        .manage-orders-responsive table {
-          vertical-align: middle;
-        }
-
-        .manage-orders-responsive [role="dialog"] {
+        table {
           width: 100%;
+          min-width: 1250px;
+          border-collapse: collapse;
         }
 
-        @media (max-width: 767.98px) {
-          .manage-orders-responsive .navbar {
-            flex-wrap: wrap;
-            gap: 10px;
-          }
+        thead th {
+          background: #f7f7f9;
+          color: #111;
+          font-size: 15px;
+          font-weight: 800;
+          padding: 16px 14px;
+          border-bottom: 1px solid #dddde5;
+          text-align: left;
+          white-space: nowrap;
+        }
 
-          .manage-orders-responsive .navbar-brand {
-            margin-right: 0;
-            font-size: 1.15rem;
-          }
+        tbody td {
+          padding: 16px 14px;
+          border-bottom: 1px solid #ececf0;
+          vertical-align: top;
+          font-size: 14px;
+        }
 
-          .manage-orders-responsive .navbar button {
-            padding: 7px 11px;
-            font-size: 0.875rem;
-          }
+        tbody tr:hover {
+          background: #fcfbff;
+        }
 
-          .manage-orders-responsive .container-fluid.px-3.px-md-4.py-4 {
-            padding: 18px 12px !important;
-          }
+        .order-id {
+          color: ${DARK};
+          font-weight: 800;
+        }
 
-          .manage-orders-responsive h2 {
-            font-size: 1.45rem;
-          }
+        .food-list {
+          display: flex;
+          flex-direction: column;
+          gap: 7px;
+          min-width: 180px;
+        }
 
-          .manage-orders-responsive .card-body {
-            min-width: 0;
-          }
+        .food-name {
+          font-weight: 700;
+          color: #222;
+        }
 
-          .manage-orders-responsive .table-responsive > .table {
-            min-width: 1050px;
-          }
+        .food-qty {
+          color: #666;
+        }
 
-          .manage-orders-responsive [role="dialog"] {
-            max-width: 100% !important;
-            margin: 0 auto !important;
-          }
+        .amount {
+          font-weight: 800;
+          white-space: nowrap;
+        }
 
-          .manage-orders-responsive [role="dialog"] > div:first-child {
-            padding: 16px !important;
-          }
+        .discount {
+          color: #198754;
+          font-weight: 700;
+          white-space: nowrap;
+        }
 
-          .manage-orders-responsive [role="dialog"] > div:nth-child(2) {
-            padding: 16px !important;
-          }
+        .payment-method {
+          font-weight: 800;
+          color: ${DARK};
+        }
 
-          .manage-orders-responsive [role="dialog"] > div:last-child {
-            padding: 12px 16px !important;
-          }
+        .payment-status {
+          color: #777;
+          margin-top: 4px;
+          font-size: 13px;
+        }
 
-          .manage-orders-responsive [role="dialog"] h4 {
-            font-size: 1.1rem;
-          }
+        .status-badge {
+          display: inline-flex;
+          align-items: center;
+          justify-content: center;
+          padding: 7px 11px;
+          border-radius: 999px;
+          font-size: 12px;
+          font-weight: 800;
+          white-space: nowrap;
+        }
 
-          .manage-orders-responsive [role="dialog"] section {
-            padding: 15px !important;
-            overflow-wrap: anywhere;
-          }
+        .status-new {
+          background: #e9ddff;
+          color: ${DARK};
+        }
 
-          .manage-orders-responsive [role="dialog"] .table-responsive > .table {
-            min-width: 600px;
+        .status-pending {
+          background: #fff0b8;
+          color: #7a5a00;
+        }
+
+        .status-paid {
+          background: #dff7e5;
+          color: #176b2d;
+        }
+
+        .status-preparing {
+          background: #e3efff;
+          color: #12569b;
+        }
+
+        .status-out {
+          background: #efe2ff;
+          color: #64259d;
+        }
+
+        .status-delivery {
+          background: #e5f4ff;
+          color: #176a91;
+        }
+
+        .status-delivered {
+          background: #dff7e5;
+          color: #176b2d;
+        }
+
+        .status-cancelled {
+          background: #fde3e3;
+          color: #a51e1e;
+        }
+
+        .status-default {
+          background: #eeeeee;
+          color: #555;
+        }
+
+        .restaurant-action-buttons {
+          display: flex;
+          flex-direction: column;
+          gap: 8px;
+          min-width: 145px;
+        }
+
+        .restaurant-action-buttons button {
+          border: none;
+          border-radius: 8px;
+          padding: 9px 12px;
+          font-weight: 800;
+          cursor: pointer;
+          white-space: nowrap;
+        }
+
+        .restaurant-action-buttons button:disabled {
+          opacity: 0.6;
+          cursor: not-allowed;
+        }
+
+        .btn-accept-order {
+          background: #198754;
+          color: white;
+        }
+
+        .btn-accept-order:hover:not(:disabled) {
+          background: #157347;
+        }
+
+        .btn-reject-order {
+          background: #dc3545;
+          color: white;
+        }
+
+        .btn-reject-order:hover:not(:disabled) {
+          background: #bb2d3b;
+        }
+
+        .payment-pending-box {
+          min-width: 180px;
+          display: flex;
+          flex-direction: column;
+          gap: 7px;
+        }
+
+        .payment-pending-box small {
+          color: #777;
+          line-height: 1.4;
+        }
+
+        .status-action-area {
+          min-width: 150px;
+        }
+
+        .status-select {
+          width: 100%;
+          min-height: 40px;
+          border: 1px solid #d4d4dc;
+          border-radius: 8px;
+          padding: 7px 9px;
+          font-weight: 700;
+          cursor: pointer;
+          background: white;
+        }
+
+        .status-select:disabled {
+          opacity: 0.6;
+          cursor: not-allowed;
+        }
+
+        .delivery-controlled-box {
+          min-width: 165px;
+          display: flex;
+          flex-direction: column;
+          gap: 6px;
+        }
+
+        .delivery-control-badge {
+          display: inline-block;
+          width: fit-content;
+          background: #eee7ff;
+          color: ${DARK};
+          padding: 6px 9px;
+          border-radius: 7px;
+          font-size: 12px;
+          font-weight: 800;
+        }
+
+        .delivery-controlled-box small {
+          color: #777;
+          line-height: 1.4;
+        }
+
+        .final-status-text {
+          color: #666;
+          font-weight: 700;
+        }
+
+        .view-btn {
+          background: white;
+          border: 1px solid ${PURPLE};
+          color: ${PURPLE};
+          border-radius: 7px;
+          padding: 8px 13px;
+          font-weight: 700;
+          cursor: pointer;
+        }
+
+        .view-btn:hover {
+          background: ${PURPLE};
+          color: white;
+        }
+
+        .view-btn.delivery {
+          border-color: #198754;
+          color: #198754;
+        }
+
+        .view-btn.delivery:hover {
+          background: #198754;
+          color: white;
+        }
+
+        .empty-state {
+          text-align: center;
+          padding: 55px 20px;
+          color: #777;
+        }
+
+        .loading-state {
+          text-align: center;
+          padding: 55px 20px;
+          color: ${DARK};
+          font-weight: 700;
+        }
+
+        .modal-overlay {
+          position: fixed;
+          inset: 0;
+          background: rgba(0, 0, 0, 0.52);
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          padding: 20px;
+          z-index: 500;
+        }
+
+        .modal {
+          width: 100%;
+          max-width: 620px;
+          max-height: 90vh;
+          overflow-y: auto;
+          background: white;
+          border-radius: 14px;
+          box-shadow:
+            0 20px 70px rgba(0, 0, 0, 0.25);
+        }
+
+        .modal-header {
+          padding: 18px 20px;
+          border-bottom: 1px solid #eee;
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          gap: 12px;
+        }
+
+        .modal-header h2 {
+          margin: 0;
+          color: ${DARK};
+          font-size: 21px;
+        }
+
+        .modal-close {
+          border: none;
+          background: transparent;
+          font-size: 25px;
+          cursor: pointer;
+          color: #555;
+        }
+
+        .modal-body {
+          padding: 20px;
+        }
+
+        .detail-grid {
+          display: grid;
+          grid-template-columns:
+            repeat(2, minmax(0, 1fr));
+          gap: 15px;
+        }
+
+        .detail-item {
+          background: #f8f7fb;
+          border-radius: 9px;
+          padding: 12px;
+        }
+
+        .detail-label {
+          font-size: 12px;
+          color: #777;
+          font-weight: 700;
+          margin-bottom: 5px;
+        }
+
+        .detail-value {
+          color: #222;
+          font-weight: 700;
+          word-break: break-word;
+        }
+
+        .modal-footer {
+          padding: 16px 20px;
+          border-top: 1px solid #eee;
+          display: flex;
+          justify-content: flex-end;
+        }
+
+        .close-btn {
+          border: none;
+          background: ${PURPLE};
+          color: white;
+          border-radius: 8px;
+          padding: 10px 17px;
+          font-weight: 800;
+          cursor: pointer;
+        }
+
+        .close-btn:hover {
+          background: ${DARK};
+        }
+
+        .text-muted {
+          color: #777;
+          font-weight: 600;
+        }
+
+        .badge {
+          display: inline-block;
+          width: fit-content;
+          padding: 6px 9px;
+          border-radius: 6px;
+          font-size: 12px;
+          font-weight: 800;
+        }
+
+        .bg-warning {
+          background: #ffc107;
+        }
+
+        .text-dark {
+          color: #212529;
+        }
+
+        @media (max-width: 1100px) {
+          .stats-grid {
+            grid-template-columns:
+              repeat(3, minmax(140px, 1fr));
           }
         }
 
-        @media (max-width: 575.98px) {
-          .manage-orders-responsive .navbar {
-            padding: 12px !important;
+        @media (max-width: 800px) {
+          .restaurant-navbar {
+            padding: 14px 16px;
+            flex-direction: column;
+            align-items: flex-start;
           }
 
-          .manage-orders-responsive .navbar-brand {
-            font-size: 1rem;
+          .nav-links {
+            width: 100%;
           }
 
-          .manage-orders-responsive .navbar button {
-            font-size: 0.8rem;
-            padding: 6px 9px;
+          .page-container {
+            padding: 18px 14px;
           }
 
-          .manage-orders-responsive .container-fluid.px-3.px-md-4.py-4 {
-            padding: 14px 10px !important;
+          .page-header {
+            flex-direction: column;
+            align-items: flex-start;
           }
 
-          .manage-orders-responsive h2 {
-            font-size: 1.3rem;
+          .filters-grid {
+            grid-template-columns: 1fr;
           }
 
-          .manage-orders-responsive h5 {
-            font-size: 1rem;
+          .stats-grid {
+            grid-template-columns:
+              repeat(2, minmax(120px, 1fr));
           }
 
-          .manage-orders-responsive .btn {
-            max-width: 100%;
+          .detail-grid {
+            grid-template-columns: 1fr;
+          }
+        }
+
+        @media (max-width: 500px) {
+          .stats-grid {
+            grid-template-columns: 1fr;
           }
 
-          .manage-orders-responsive .alert {
-            overflow-wrap: anywhere;
+          .page-header h1 {
+            font-size: 24px;
           }
 
-          .manage-orders-responsive .alert .btn-close {
-            margin-left: 8px;
+          .brand {
+            font-size: 19px;
           }
 
-          .manage-orders-responsive [role="presentation"] {
-            padding: 10px 6px !important;
+          .nav-links {
+            display: grid;
+            grid-template-columns:
+              repeat(2, minmax(0, 1fr));
+            width: 100%;
           }
 
-          .manage-orders-responsive [role="dialog"] > div:first-child {
-            gap: 10px !important;
+          .nav-links button {
+            width: 100%;
           }
 
-          .manage-orders-responsive [role="dialog"] > div:first-child p {
-            font-size: 0.8rem;
-          }
-
-          .manage-orders-responsive [role="dialog"] > div:nth-child(2) {
-            padding: 12px !important;
-          }
-
-          .manage-orders-responsive [role="dialog"] section {
-            padding: 13px !important;
-          }
-
-          .manage-orders-responsive [role="dialog"] .row {
-            --bs-gutter-x: 0.75rem;
-          }
-
-          .manage-orders-responsive [role="dialog"] .alert .btn {
-            margin: 8px 0 0 !important;
+          .modal-overlay {
+            padding: 10px;
           }
         }
       `}</style>
 
-      <nav
-        className="navbar navbar-dark px-3 px-md-4 py-3"
-        style={{ backgroundColor: "#641bc2" }}
-      >
-        <span className="navbar-brand fw-bold">♨ Food Xpress</span>
+      <nav className="restaurant-navbar">
         <button
-          type="button"
-          className="btn btn-light"
-          onClick={() => navigate("/restaurant/dashboard")}
+          className="brand"
+          onClick={() =>
+            navigate("/restaurant/dashboard")
+          }
+          style={{
+            border: "none",
+            background: "transparent",
+            cursor: "pointer",
+          }}
         >
-          Back to Dashboard
+          ♨️ Food Xpress
         </button>
+
+        <div className="nav-links">
+          <button
+            onClick={() =>
+              navigate("/restaurant/dashboard")
+            }
+          >
+            Dashboard
+          </button>
+
+          <button
+            onClick={() =>
+              navigate("/restaurant/manage-food")
+            }
+          >
+            Manage Food
+          </button>
+
+          <button
+            onClick={() =>
+              navigate("/restaurant/manage-orders")
+            }
+          >
+            Manage Orders
+          </button>
+
+          <button
+            onClick={() =>
+              navigate("/restaurant/profile")
+            }
+          >
+            Profile
+          </button>
+        </div>
       </nav>
 
-      <div className="container-fluid px-3 px-md-4 py-4">
-        <div className="d-flex flex-wrap justify-content-between align-items-center gap-3 mb-4">
+      <main className="page-container">
+        <div className="page-header">
           <div>
-            <h2 className="fw-bold mb-1">Manage Orders</h2>
-            <p className="text-muted mb-0">{restaurantName}</p>
+            <h1>Manage Orders</h1>
+
+            <p>
+              Accept customer orders, prepare food,
+              and send ready orders to the delivery
+              partner.
+            </p>
           </div>
 
           <button
-            type="button"
-            className="btn btn-outline-primary"
+            className="refresh-btn"
             onClick={fetchOrders}
-            disabled={loading || updatingOrderId !== null}
+            disabled={loading}
           >
-            {loading ? "Refreshing..." : "↻ Refresh Orders"}
+            {loading
+              ? "Refreshing..."
+              : "↻ Refresh Orders"}
           </button>
         </div>
 
         {error && (
-          <div className="alert alert-danger" role="alert">
-            <strong>Error: </strong>
+          <div className="alert alert-error">
             {error}
-            <button
-              type="button"
-              className="btn-close float-end"
-              aria-label="Dismiss error"
-              onClick={() => setError("")}
-            />
           </div>
         )}
 
-        {successMessage && (
-          <div className="alert alert-success" role="status">
-            {successMessage}
-            <button
-              type="button"
-              className="btn-close float-end"
-              aria-label="Dismiss success message"
-              onClick={() => setSuccessMessage("")}
-            />
+        {success && (
+          <div className="alert alert-success">
+            {success}
           </div>
         )}
 
-        <div className="row g-3 mb-4">
-          {[
-            { label: "Total Orders", value: orders.length },
-            { label: "New Orders", value: newOrders },
-            { label: "Awaiting Payment", value: pendingPaymentOrders },
-            { label: "Paid / In Progress", value: paidOrders },
-            { label: "Preparing", value: preparingOrders },
-            { label: "Out for Delivery", value: outForDeliveryOrders },
-            { label: "Delivered", value: deliveredOrders },
-          ].map((stat) => (
-            <div className="col-6 col-md-4 col-xl" key={stat.label}>
-              <div className="card border-0 shadow-sm rounded-4 h-100">
-                <div className="card-body">
-                  <p className="text-muted mb-1 small">{stat.label}</p>
-                  <h3 className="fw-bold mb-0">{stat.value}</h3>
-                </div>
-              </div>
+        <section className="stats-grid">
+          <div className="stat-card">
+            <div className="stat-label">
+              Total Orders
             </div>
-          ))}
-        </div>
 
-        <div className="card border-0 shadow-sm rounded-4">
-          <div className="card-body p-3 p-md-4">
-            <div className="d-flex flex-wrap justify-content-between align-items-center gap-3 mb-3">
-              <div>
-                <h5 className="fw-bold mb-1">Customer Orders</h5>
-                <small className="text-muted">
-                  Showing {filteredOrders.length} of {orders.length} orders
-                </small>
-              </div>
+            <div className="stat-value">
+              {statistics.total}
+            </div>
+          </div>
 
-              <button
-                type="button"
-                className="btn btn-outline-secondary btn-sm"
-                onClick={() => {
-                  setSearchTerm("");
-                  setStatusFilter("ALL");
-                }}
-                disabled={!searchTerm && statusFilter === "ALL"}
+          <div className="stat-card">
+            <div className="stat-label">
+              New Orders
+            </div>
+
+            <div className="stat-value">
+              {statistics.newOrders}
+            </div>
+          </div>
+
+          <div className="stat-card">
+            <div className="stat-label">
+              Preparing
+            </div>
+
+            <div className="stat-value">
+              {statistics.preparing}
+            </div>
+          </div>
+
+          <div className="stat-card">
+            <div className="stat-label">
+              Out for Delivery
+            </div>
+
+            <div className="stat-value">
+              {statistics.outForDelivery}
+            </div>
+          </div>
+
+          <div className="stat-card">
+            <div className="stat-label">
+              Delivered
+            </div>
+
+            <div className="stat-value">
+              {statistics.delivered}
+            </div>
+          </div>
+
+          <div className="stat-card">
+            <div className="stat-label">
+              Cancelled
+            </div>
+
+            <div className="stat-value">
+              {statistics.cancelled}
+            </div>
+          </div>
+        </section>
+
+        <section className="filters-card">
+          <div className="filters-grid">
+            <div className="filter-group">
+              <label>
+                Search Orders
+              </label>
+
+              <input
+                type="text"
+                className="filter-input"
+                placeholder="Search by order ID or food name..."
+                value={searchTerm}
+                onChange={(event) =>
+                  setSearchTerm(
+                    event.target.value
+                  )
+                }
+              />
+            </div>
+
+            <div className="filter-group">
+              <label>
+                Filter by status
+              </label>
+
+              <select
+                className="filter-select"
+                value={statusFilter}
+                onChange={(event) =>
+                  setStatusFilter(
+                    event.target.value
+                  )
+                }
               >
-                Clear Search / Filter
-              </button>
-            </div>
-
-            <div className="row g-3 mb-4">
-              <div className="col-md-7">
-                <label htmlFor="orderSearch" className="form-label fw-semibold">
-                  Search orders
-                </label>
-                <input
-                  id="orderSearch"
-                  type="search"
-                  className="form-control"
-                  placeholder="Search by order ID or food name..."
-                  value={searchTerm}
-                  onChange={(event) => setSearchTerm(event.target.value)}
-                />
-              </div>
-
-              <div className="col-md-5">
-                <label htmlFor="orderStatusFilter" className="form-label fw-semibold">
-                  Filter by status
-                </label>
-                <select
-                  id="orderStatusFilter"
-                  className="form-select"
-                  value={statusFilter}
-                  onChange={(event) => setStatusFilter(event.target.value)}
-                >
-                  {FILTER_OPTIONS.map((option) => (
-                    <option key={option.value} value={option.value}>
+                {FILTER_OPTIONS.map(
+                  (option) => (
+                    <option
+                      key={option.value}
+                      value={option.value}
+                    >
                       {option.label}
                     </option>
-                  ))}
-                </select>
-              </div>
+                  )
+                )}
+              </select>
             </div>
+          </div>
+        </section>
 
-            {loading ? (
-              <div className="text-center py-5">
-                <div className="spinner-border text-primary" role="status">
-                  <span className="visually-hidden">Loading orders...</span>
-                </div>
-                <p className="text-muted mt-3 mb-0">
-                  Loading orders from the backend...
-                </p>
-              </div>
-            ) : orders.length === 0 && !error ? (
-              <div className="text-center py-5">
-                <h5>No orders found</h5>
-                <p className="text-muted mb-0">
-                  Customer orders for your restaurant will appear here.
-                </p>
-              </div>
-            ) : filteredOrders.length === 0 ? (
-              <div className="text-center py-5">
-                <h5>No matching orders</h5>
-                <p className="text-muted mb-3">
-                  Try a different order ID, food name, or status filter.
-                </p>
-                <button
-                  type="button"
-                  className="btn btn-outline-primary"
-                  onClick={() => {
-                    setSearchTerm("");
-                    setStatusFilter("ALL");
-                  }}
-                >
-                  Show All Orders
-                </button>
-              </div>
-            ) : (
-              <div className="table-responsive">
-                <table className="table table-hover align-middle">
-                  <thead className="table-light">
-                    <tr>
-                      <th>Order ID</th>
-                      <th>Date</th>
-                      <th>Food Items</th>
-                      <th>Subtotal</th>
-                      <th>Discount</th>
-                      <th>Total</th>
-                      <th>Status</th>
-                      <th>Details</th>
-                      <th style={{ minWidth: "250px" }}>Order Actions</th>
-                    </tr>
-                  </thead>
+        <section className="table-card">
+          {loading ? (
+            <div className="loading-state">
+              Loading restaurant orders...
+            </div>
+          ) : filteredOrders.length === 0 ? (
+            <div className="empty-state">
+              <h3>
+                No orders found
+              </h3>
 
-                  <tbody>
-                    {filteredOrders.map((order, index) => {
-                      const orderId = getOrderId(order);
-                      const status = normalizeStatus(order.status);
-                      const options = STATUS_OPTIONS[status] || [];
-                      const isUpdating =
-                        updatingOrderId !== null &&
-                        String(updatingOrderId) === String(orderId);
-                      const isFinalStatus = [
-                        "DELIVERED",
-                        "CANCELLED",
-                      ].includes(status);
+              <p>
+                There are no orders matching
+                your current search or filter.
+              </p>
+            </div>
+          ) : (
+            <div className="table-wrapper">
+              <table>
+                <thead>
+                  <tr>
+                    <th>
+                      Order ID
+                    </th>
 
-                      const showAcceptReject =
-                        !isFinalStatus &&
-                        !["PREPARING", "OUT_FOR_DELIVERY"].includes(status);
+                    <th>
+                      Order Date
+                    </th>
+
+                    <th>
+                      Food Items
+                    </th>
+
+                    <th>
+                      Subtotal
+                    </th>
+
+                    <th>
+                      Discount
+                    </th>
+
+                    <th>
+                      Total
+                    </th>
+
+                    <th>
+                      Status
+                    </th>
+
+                    <th>
+                      Payment
+                    </th>
+
+                    <th>
+                      Customer Details
+                    </th>
+
+                    <th>
+                      Delivery Partner
+                    </th>
+
+                    <th>
+                      Order Actions
+                    </th>
+                  </tr>
+                </thead>
+
+                <tbody>
+                  {filteredOrders.map(
+                    (order) => {
+                      const orderId =
+                        getOrderId(order);
+
+                      const status =
+                        normalizeStatus(
+                          order?.status
+                        );
+
+                      const items =
+                        getItems(order);
+
+                      const subtotal =
+                        getSubtotal(order);
+
+                      const discount =
+                        getDiscount(order);
+
+                      const total =
+                        getTotal(order);
 
                       return (
-                        <tr key={orderId ?? `invalid-order-${index}`}>
-                          <td className="fw-semibold">
-                            {orderId != null ? `#${orderId}` : "ID missing"}
-                          </td>
-
-                          <td className="text-nowrap">
-                            {formatDate(order.orderDate)}
-                          </td>
-
-                          <td style={{ minWidth: "190px" }}>
-                            {getOrderItems(order).length > 0 ? (
-                              <ul className="list-unstyled mb-0">
-                                {getOrderItems(order).map((item, itemIndex) => (
-                                  <li
-                                    key={
-                                      item.id ??
-                                      item.itemId ??
-                                      `${orderId}-${itemIndex}`
-                                    }
-                                    className="mb-2"
-                                  >
-                                    <span className="fw-semibold">
-                                      {item.foodName ?? item.name ?? "Food item"}
-                                    </span>
-                                    <br />
-                                    <small className="text-muted">
-                                      Qty: {item.quantity ?? 1} × ₹
-                                      {formatMoney(item.unitPrice ?? item.price)}
-                                    </small>
-                                  </li>
-                                ))}
-                              </ul>
-                            ) : (
-                              <span className="text-muted">No item details</span>
-                            )}
-                          </td>
-
-                          <td className="text-nowrap">
-                            ₹{formatMoney(order.subtotal)}
-                          </td>
-                          <td className="text-nowrap">
-                            ₹{formatMoney(order.discountAmount)}
-                          </td>
-                          <td className="fw-bold text-nowrap">
-                            ₹{formatMoney(order.totalAmount)}
-                          </td>
-
+                        <tr
+                          key={
+                            orderId ??
+                            `order-${Math.random()}`
+                          }
+                        >
                           <td>
-                            <span
-                              className={`badge ${
-                                STATUS_CLASSES[status] || "bg-secondary"
-                              }`}
-                            >
-                              {formatStatus(status)}
+                            <span className="order-id">
+                              #
+                              {orderId ??
+                                "N/A"}
                             </span>
                           </td>
 
                           <td>
-                            {orderId == null ? (
-                              <small className="text-muted">Unavailable</small>
-                            ) : (
-                              <button
-                                type="button"
-                                className="btn btn-outline-primary btn-sm"
-                                onClick={() => fetchOrderDetails(orderId)}
-                              >
-                                View
-                              </button>
+                            {formatDate(
+                              getCreatedAt(
+                                order
+                              )
                             )}
                           </td>
 
-                          <td style={{ minWidth: "250px" }}>
-                            {orderId == null ? (
-                              <small className="text-danger">
-                                Order ID is missing.
-                              </small>
-                            ) : isFinalStatus ? (
-                              <span className="text-muted small">
-                                Order finalized
-                              </span>
-                            ) : showAcceptReject ? (
-                              <div className="d-flex flex-wrap gap-2">
-                                <button
-                                  type="button"
-                                  className="btn btn-success btn-sm"
-                                  style={{
-                                    display: "inline-block",
-                                    visibility: "visible",
-                                    whiteSpace: "nowrap",
-                                  }}
-                                  disabled={updatingOrderId !== null}
-                                  onClick={() =>
-                                    handleStatusChange(orderId, "PREPARING")
-                                  }
-                                >
-                                  {isUpdating ? "Updating..." : "✓ Accept Order"}
-                                </button>
-
-                                <button
-                                  type="button"
-                                  className="btn btn-outline-danger btn-sm"
-                                  style={{
-                                    display: "inline-block",
-                                    visibility: "visible",
-                                    whiteSpace: "nowrap",
-                                  }}
-                                  disabled={updatingOrderId !== null}
-                                  onClick={() =>
-                                    handleStatusChange(orderId, "CANCELLED")
-                                  }
-                                >
-                                  ✕ Reject Order
-                                </button>
-                              </div>
-                            ) : options.length > 0 ? (
-                              <div>
-                                <select
-                                  className="form-select form-select-sm"
-                                  value=""
-                                  disabled={updatingOrderId !== null}
-                                  onChange={(event) => {
-                                    const newStatus = event.target.value;
-
-                                    if (newStatus) {
-                                      handleStatusChange(orderId, newStatus);
-                                    }
-                                  }}
-                                  aria-label={`Update status for order ${orderId}`}
-                                >
-                                  <option value="">
-                                    {isUpdating
-                                      ? "Updating..."
-                                      : "Select status"}
-                                  </option>
-                                  {options.map((option) => (
-                                    <option
-                                      key={option.value}
-                                      value={option.value}
+                          <td>
+                            <div className="food-list">
+                              {items.length >
+                              0 ? (
+                                items.map(
+                                  (
+                                    item,
+                                    index
+                                  ) => (
+                                    <div
+                                      key={
+                                        item?.id ??
+                                        index
+                                      }
                                     >
-                                      {option.label}
-                                    </option>
-                                  ))}
-                                </select>
+                                      <div className="food-name">
+                                        {getFoodName(
+                                          item
+                                        )}
+                                      </div>
 
-                                {isUpdating && (
-                                  <small className="text-muted d-block mt-1">
-                                    Saving status...
-                                  </small>
-                                )}
-                              </div>
-                            ) : (
-                              <span className="text-muted small">
-                                No action available
-                              </span>
+                                      <div className="food-qty">
+                                        Qty:{" "}
+                                        {getQuantity(
+                                          item
+                                        )}{" "}
+                                        × ₹
+                                        {getItemPrice(
+                                          item
+                                        ).toFixed(
+                                          2
+                                        )}
+                                      </div>
+                                    </div>
+                                  )
+                                )
+                              ) : (
+                                <span>
+                                  No food
+                                  items
+                                </span>
+                              )}
+                            </div>
+                          </td>
+
+                          <td>
+                            <span className="amount">
+                              ₹
+                              {subtotal.toFixed(
+                                2
+                              )}
+                            </span>
+                          </td>
+
+                          <td>
+                            <span className="discount">
+                              ₹
+                              {discount.toFixed(
+                                2
+                              )}
+                            </span>
+                          </td>
+
+                          <td>
+                            <span className="amount">
+                              ₹
+                              {total.toFixed(
+                                2
+                              )}
+                            </span>
+                          </td>
+
+                          <td>
+                            <span
+                              className={`status-badge ${getStatusClass(
+                                status
+                              )}`}
+                            >
+                              {formatOrderStatus(
+                                order
+                              )}
+                            </span>
+                          </td>
+
+                          <td>
+                            <div className="payment-method">
+                              {String(
+                                getPaymentMethod(
+                                  order
+                                )
+                              ).toUpperCase()}
+                            </div>
+
+                            <div className="payment-status">
+                              {String(
+                                getPaymentStatus(
+                                  order
+                                )
+                              ).toUpperCase()}
+                            </div>
+                          </td>
+
+                          <td>
+                            <button
+                              type="button"
+                              className="view-btn"
+                              onClick={() =>
+                                openCustomerDetails(
+                                  order
+                                )
+                              }
+                            >
+                              View
+                            </button>
+                          </td>
+
+                          <td>
+                            <button
+                              type="button"
+                              className="view-btn delivery"
+                              onClick={() =>
+                                openDeliveryDetails(
+                                  order
+                                )
+                              }
+                            >
+                              View
+                            </button>
+                          </td>
+
+                          <td>
+                            {renderActionCell(
+                              order
                             )}
                           </td>
                         </tr>
                       );
-                    })}
-                  </tbody>
-                </table>
-              </div>
-            )}
-          </div>
-        </div>
-      </div>
+                    }
+                  )}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </section>
+      </main>
 
-      {viewOrderId !== null && (
-        <div
-          role="presentation"
-          onMouseDown={(event) => {
-            if (event.target === event.currentTarget) {
-              closeOrderDetails();
-            }
-          }}
-          style={{
-            position: "fixed",
-            inset: 0,
-            zIndex: 2000,
-            backgroundColor: "rgba(18, 12, 30, 0.72)",
-            overflowY: "auto",
-            padding: "24px 12px",
-            display: "flex",
-            justifyContent: "center",
-            alignItems: "flex-start",
-            isolation: "isolate",
-          }}
-        >
+      {customerModalOpen &&
+        customerDetails && (
           <div
-            role="dialog"
-            aria-modal="true"
-            aria-labelledby="orderDetailsTitle"
-            onMouseDown={(event) => event.stopPropagation()}
-            style={{
-              width: "100%",
-              maxWidth: "1000px",
-              margin: "12px auto",
-              backgroundColor: "#ffffff",
-              color: "#212529",
-              borderRadius: "16px",
-              overflow: "hidden",
-              boxShadow: "0 24px 80px rgba(0,0,0,0.38)",
-              position: "relative",
-            }}
+            className="modal-overlay"
+            onClick={() =>
+              setCustomerModalOpen(false)
+            }
           >
             <div
-              style={{
-                background: "linear-gradient(135deg, #641bc2, #351078)",
-                color: "#ffffff",
-                padding: "22px 26px",
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "space-between",
-                gap: "16px",
-              }}
+              className="modal"
+              onClick={(event) =>
+                event.stopPropagation()
+              }
             >
-              <div>
-                <h4 id="orderDetailsTitle" className="fw-bold mb-1">
-                  Order Details #{viewOrderId}
-                </h4>
-                <p className="mb-0" style={{ color: "#f0e7ff" }}>
-                  Customer, delivery address, food items and payment summary
-                </p>
+              <div className="modal-header">
+                <h2>
+                  Customer Details
+                </h2>
+
+                <button
+                  type="button"
+                  className="modal-close"
+                  onClick={() =>
+                    setCustomerModalOpen(
+                      false
+                    )
+                  }
+                >
+                  ×
+                </button>
               </div>
 
-              <button
-                type="button"
-                aria-label="Close order details"
-                onClick={closeOrderDetails}
-                style={{
-                  border: "1px solid rgba(255,255,255,0.65)",
-                  borderRadius: "50%",
-                  width: "40px",
-                  height: "40px",
-                  flexShrink: 0,
-                  backgroundColor: "rgba(255,255,255,0.12)",
-                  color: "#ffffff",
-                  fontSize: "25px",
-                  lineHeight: 1,
-                  cursor: "pointer",
-                }}
-              >
-                ×
-              </button>
-            </div>
+              <div className="modal-body">
+                <div className="detail-grid">
+                  <div className="detail-item">
+                    <div className="detail-label">
+                      Customer Name
+                    </div>
 
-            <div
-              style={{
-                padding: "24px",
-                backgroundColor: "#ffffff",
-                color: "#212529",
-              }}
-            >
-              {viewLoading ? (
-                <div className="text-center py-5">
-                  <div className="spinner-border text-primary" role="status">
-                    <span className="visually-hidden">
-                      Loading order details...
-                    </span>
+                    <div className="detail-value">
+                      {getCustomerName(
+                        customerDetails
+                      )}
+                    </div>
                   </div>
-                  <p className="mt-3 mb-0 text-secondary">
-                    Loading order and customer details...
-                  </p>
-                </div>
-              ) : viewError ? (
-                <div className="alert alert-danger mb-0" role="alert">
-                  {viewError}
-                  <button
-                    type="button"
-                    className="btn btn-outline-danger btn-sm ms-3"
-                    onClick={() => fetchOrderDetails(viewOrderId)}
+
+                  <div className="detail-item">
+                    <div className="detail-label">
+                      Email
+                    </div>
+
+                    <div className="detail-value">
+                      {getCustomerEmail(
+                        customerDetails
+                      )}
+                    </div>
+                  </div>
+
+                  <div className="detail-item">
+                    <div className="detail-label">
+                      Phone
+                    </div>
+
+                    <div className="detail-value">
+                      {getCustomerPhone(
+                        customerDetails
+                      )}
+                    </div>
+                  </div>
+
+                  <div className="detail-item">
+                    <div className="detail-label">
+                      Order ID
+                    </div>
+
+                    <div className="detail-value">
+                      #
+                      {getOrderId(
+                        customerDetails
+                      )}
+                    </div>
+                  </div>
+
+                  <div
+                    className="detail-item"
+                    style={{
+                      gridColumn:
+                        "1 / -1",
+                    }}
                   >
-                    Try Again
-                  </button>
+                    <div className="detail-label">
+                      Delivery Address
+                    </div>
+
+                    <div className="detail-value">
+                      {getDeliveryAddress(
+                        customerDetails
+                      )}
+                    </div>
+                  </div>
+
+                  <div className="detail-item">
+                    <div className="detail-label">
+                      Payment Method
+                    </div>
+
+                    <div className="detail-value">
+                      {String(
+                        getPaymentMethod(
+                          customerDetails
+                        )
+                      ).toUpperCase()}
+                    </div>
+                  </div>
+
+                  <div className="detail-item">
+                    <div className="detail-label">
+                      Payment Status
+                    </div>
+
+                    <div className="detail-value">
+                      {String(
+                        getPaymentStatus(
+                          customerDetails
+                        )
+                      ).toUpperCase()}
+                    </div>
+                  </div>
                 </div>
-              ) : orderDetails ? (
-                <>
-                  <div className="row g-3 mb-4">
-                    <div className="col-md-6">
-                      <section style={detailCardStyle}>
-                        <h5
-                          className="fw-bold mb-3"
-                          style={{ color: "#351078" }}
-                        >
-                          Customer Details
-                        </h5>
-                        <p className="mb-2">
-                          <strong>Customer ID:</strong>{" "}
-                          {orderDetails.customerId ??
-                            orderDetails.customer?.id ??
-                            "Not available"}
-                        </p>
-                        <p className="mb-2">
-                          <strong>Name:</strong>{" "}
-                          {orderDetails.customerName ??
-                            orderDetails.customer?.name ??
-                            "Not available"}
-                        </p>
-                        <p className="mb-2">
-                          <strong>Email:</strong>{" "}
-                          {orderDetails.customerEmail ??
-                            orderDetails.customer?.email ??
-                            "Not available"}
-                        </p>
-                        <p className="mb-0">
-                          <strong>Phone:</strong>{" "}
-                          {orderDetails.customerPhone ??
-                            orderDetails.customer?.phone ??
-                            "Not available"}
-                        </p>
-                      </section>
-                    </div>
+              </div>
 
-                    <div className="col-md-6">
-                      <section style={detailCardStyle}>
-                        <h5
-                          className="fw-bold mb-3"
-                          style={{ color: "#351078" }}
-                        >
-                          Delivery Address
-                        </h5>
-                        <p className="mb-2">
-                          <strong>Address type:</strong>{" "}
-                          {orderDetails.addressLabel ?? "Delivery"}
-                        </p>
-                        <p className="mb-2">
-                          <strong>Recipient:</strong>{" "}
-                          {orderDetails.recipientName ?? "Not available"}
-                        </p>
-                        <p className="mb-2">
-                          <strong>Phone:</strong>{" "}
-                          {orderDetails.deliveryPhone ?? "Not available"}
-                        </p>
-                        <p
-                          className="mb-0"
-                          style={{ lineHeight: 1.7, overflowWrap: "anywhere" }}
-                        >
-                          {[
-                            orderDetails.addressLine,
-                            orderDetails.city,
-                            orderDetails.state,
-                            orderDetails.pincode,
-                          ]
-                            .filter(Boolean)
-                            .join(", ") ||
-                            "No delivery address was saved for this order."}
-                        </p>
-                      </section>
-                    </div>
-                  </div>
-
-                  <section style={detailCardStyle} className="mb-4">
-                    <h5
-                      className="fw-bold mb-3"
-                      style={{ color: "#351078" }}
-                    >
-                      Order Information
-                    </h5>
-                    <div className="row g-3">
-                      <div className="col-md-6">
-                        <strong>Order ID:</strong>{" "}
-                        #{orderDetails.orderId ??
-                          orderDetails.id ??
-                          viewOrderId}
-                      </div>
-                      <div className="col-md-6">
-                        <strong>Date:</strong>{" "}
-                        {formatDate(orderDetails.orderDate)}
-                      </div>
-                      <div className="col-md-6">
-                        <strong>Status:</strong>{" "}
-                        {formatStatus(orderDetails.status)}
-                      </div>
-                      <div className="col-md-6">
-                        <strong>Payment method:</strong>{" "}
-                        {orderDetails.paymentMethod ?? "Not available"}
-                      </div>
-                      <div className="col-md-6">
-                        <strong>Payment status:</strong>{" "}
-                        {orderDetails.paymentStatus ?? "Not available"}
-                      </div>
-                      <div className="col-md-6">
-                        <strong>Coupon:</strong>{" "}
-                        {orderDetails.couponCode || "None"}
-                      </div>
-                    </div>
-                  </section>
-
-                  {(orderDetails.refundId ||
-                    orderDetails.refundStatus ||
-                    orderDetails.refundDate ||
-                    orderDetails.cancellationReason) && (
-                    <section style={detailCardStyle} className="mb-4">
-                      <h5
-                        className="fw-bold mb-3"
-                        style={{ color: "#351078" }}
-                      >
-                        Refund Information
-                      </h5>
-
-                      <div className="row g-3">
-                        <div className="col-md-6">
-                          <strong>Refund ID:</strong>{" "}
-                          {orderDetails.refundId || "Not available"}
-                        </div>
-
-                        <div className="col-md-6">
-                          <strong>Refund status:</strong>{" "}
-                          {orderDetails.refundStatus || "Not available"}
-                        </div>
-
-                        <div className="col-md-6">
-                          <strong>Refund date:</strong>{" "}
-                          {formatDate(orderDetails.refundDate)}
-                        </div>
-
-                        <div className="col-md-6">
-                          <strong>Payment status:</strong>{" "}
-                          {orderDetails.paymentStatus || "Not available"}
-                        </div>
-
-                        <div className="col-12">
-                          <strong>Cancellation reason:</strong>{" "}
-                          {orderDetails.cancellationReason || "Not provided"}
-                        </div>
-                      </div>
-                    </section>
-                  )}
-
-                  <h5 className="fw-bold mb-3" style={{ color: "#351078" }}>
-                    Food Items
-                  </h5>
-
-                  {Array.isArray(orderDetails.items) &&
-                  orderDetails.items.length > 0 ? (
-                    <div
-                      className="table-responsive mb-4"
-                      style={{ borderRadius: "8px" }}
-                    >
-                      <table className="table table-bordered table-hover align-middle mb-0">
-                        <thead
-                          style={{
-                            backgroundColor: "#f1e9ff",
-                            color: "#351078",
-                          }}
-                        >
-                          <tr>
-                            <th>Food Item</th>
-                            <th>Restaurant</th>
-                            <th>Price</th>
-                            <th>Quantity</th>
-                            <th>Subtotal</th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {orderDetails.items.map((item, itemIndex) => (
-                            <tr
-                              key={
-                                item.id ?? item.orderItemId ?? itemIndex
-                              }
-                            >
-                              <td>
-                                {item.foodName ?? item.name ?? "Food item"}
-                              </td>
-                              <td>
-                                {item.restaurantName ?? "Not available"}
-                              </td>
-                              <td>
-                                ₹{formatMoney(item.unitPrice ?? item.price)}
-                              </td>
-                              <td>{item.quantity ?? 1}</td>
-                              <td>
-                                ₹
-                                {formatMoney(
-                                  item.subtotal ??
-                                    Number(
-                                      item.unitPrice ?? item.price ?? 0
-                                    ) * Number(item.quantity ?? 1)
-                                )}
-                              </td>
-                            </tr>
-                          ))}
-                        </tbody>
-                      </table>
-                    </div>
-                  ) : (
-                    <p className="text-secondary">
-                      No item details were returned for this order.
-                    </p>
-                  )}
-
-                  <div className="row justify-content-end">
-                    <div className="col-md-6 col-lg-5">
-                      <div className="d-flex justify-content-between mb-2">
-                        <span>Subtotal</span>
-                        <span>₹{formatMoney(orderDetails.subtotal)}</span>
-                      </div>
-                      <div
-                        className="d-flex justify-content-between mb-2"
-                        style={{ color: "#198754" }}
-                      >
-                        <span>Discount</span>
-                        <span>
-                          -₹{formatMoney(orderDetails.discountAmount)}
-                        </span>
-                      </div>
-                      <hr />
-                      <div className="d-flex justify-content-between fw-bold fs-5">
-                        <span>Total to Pay</span>
-                        <span style={{ color: "#641bc2" }}>
-                          ₹{formatMoney(orderDetails.totalAmount)}
-                        </span>
-                      </div>
-                    </div>
-                  </div>
-                </>
-              ) : null}
-            </div>
-
-            <div
-              style={{
-                borderTop: "1px solid #dee2e6",
-                padding: "16px 24px",
-                backgroundColor: "#f8f9fa",
-                display: "flex",
-                justifyContent: "flex-end",
-              }}
-            >
-              <button
-                type="button"
-                className="btn btn-secondary px-4"
-                onClick={closeOrderDetails}
-              >
-                Close
-              </button>
+              <div className="modal-footer">
+                <button
+                  type="button"
+                  className="close-btn"
+                  onClick={() =>
+                    setCustomerModalOpen(
+                      false
+                    )
+                  }
+                >
+                  Close
+                </button>
+              </div>
             </div>
           </div>
-        </div>
-      )}
+        )}
+
+      {deliveryModalOpen &&
+        deliveryDetails && (
+          <div
+            className="modal-overlay"
+            onClick={() =>
+              setDeliveryModalOpen(false)
+            }
+          >
+            <div
+              className="modal"
+              onClick={(event) =>
+                event.stopPropagation()
+              }
+            >
+              <div className="modal-header">
+                <h2>
+                  Delivery Partner
+                </h2>
+
+                <button
+                  type="button"
+                  className="modal-close"
+                  onClick={() =>
+                    setDeliveryModalOpen(
+                      false
+                    )
+                  }
+                >
+                  ×
+                </button>
+              </div>
+
+              <div className="modal-body">
+                <div className="detail-grid">
+                  <div className="detail-item">
+                    <div className="detail-label">
+                      Delivery Partner
+                    </div>
+
+                    <div className="detail-value">
+                      {getDeliveryPartnerName(
+                        deliveryDetails
+                      )}
+                    </div>
+                  </div>
+
+                  <div className="detail-item">
+                    <div className="detail-label">
+                      Phone
+                    </div>
+
+                    <div className="detail-value">
+                      {getDeliveryPartnerPhone(
+                        deliveryDetails
+                      )}
+                    </div>
+                  </div>
+
+                  <div className="detail-item">
+                    <div className="detail-label">
+                      Order ID
+                    </div>
+
+                    <div className="detail-value">
+                      #
+                      {getOrderId(
+                        deliveryDetails
+                      )}
+                    </div>
+                  </div>
+
+                  <div className="detail-item">
+                    <div className="detail-label">
+                      Order Status
+                    </div>
+
+                    <div className="detail-value">
+                      {formatOrderStatus(
+                        deliveryDetails
+                      )}
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div className="modal-footer">
+                <button
+                  type="button"
+                  className="close-btn"
+                  onClick={() =>
+                    setDeliveryModalOpen(
+                      false
+                    )
+                  }
+                >
+                  Close
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
     </div>
   );
 }
-
-export default ManageOrders;

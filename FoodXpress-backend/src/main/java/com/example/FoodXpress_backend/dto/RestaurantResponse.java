@@ -1,4 +1,3 @@
-
 package com.example.FoodXpress_backend.dto;
 
 public record RestaurantResponse(
@@ -10,6 +9,13 @@ public record RestaurantResponse(
         int deliveryTimeMinutes,
         String imageUrl,
         boolean freeDelivery,
-        double deliveryCharge
+        double deliveryCharge,
+
+        // Restaurant location
+        Double latitude,
+        Double longitude,
+
+        // Distance from customer's selected/default address
+        Double distanceKm
 ) {
 }

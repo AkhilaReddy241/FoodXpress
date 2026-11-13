@@ -85,6 +85,11 @@ public class CustomerOrder {
     @Column(name = "pincode")
     private String pincode;
 
+    // DELIVERY PARTNER ASSIGNMENT
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "delivery_partner_id")
+    private DeliveryPartner deliveryPartner;
+
     @OneToMany(
         mappedBy = "customerOrder",
         cascade = CascadeType.ALL,
@@ -197,17 +202,16 @@ public class CustomerOrder {
         return razorpayPaymentSignature;
     }
 
-    public void setRazorpayPaymentSignature(String razorpayPaymentSignature) {
-        this.razorpayPaymentSignature = razorpayPaymentSignature;
+    public void setRazorpayPaymentSignature(String signature) {
+        this.razorpayPaymentSignature = signature;
     }
 
-    // Compatibility with code using the older method names
     public String getRazorpaySignature() {
         return razorpayPaymentSignature;
     }
 
-    public void setRazorpaySignature(String razorpaySignature) {
-        this.razorpayPaymentSignature = razorpaySignature;
+    public void setRazorpaySignature(String signature) {
+        this.razorpayPaymentSignature = signature;
     }
 
     public String getRefundId() {
@@ -296,5 +300,14 @@ public class CustomerOrder {
 
     public void setPincode(String pincode) {
         this.pincode = pincode;
+    }
+
+    // DELIVERY PARTNER GETTER AND SETTER
+    public DeliveryPartner getDeliveryPartner() {
+        return deliveryPartner;
+    }
+
+    public void setDeliveryPartner(DeliveryPartner deliveryPartner) {
+        this.deliveryPartner = deliveryPartner;
     }
 }

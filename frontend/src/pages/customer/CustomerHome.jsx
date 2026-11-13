@@ -1,4 +1,3 @@
-
 import { useCallback, useEffect, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 
@@ -195,7 +194,179 @@ function CustomerHome() {
       time: `${restaurant.deliveryTimeMinutes ?? "N/A"} mins`,
       image: restaurant.imageUrl,
       freeDelivery: restaurant.freeDelivery,
+      deliveryCharge: restaurant.deliveryCharge,
+      distanceKm: restaurant.distanceKm,
     }));
+
+  /*
+   * Loads restaurants using the customer's default saved address.
+   *
+   * If the customer is not logged in, or has no saved address/location,
+   * we safely fall back to the normal restaurant endpoint.
+   */
+  const loadRestaurantsNearCustomer = async () => {
+    const token = sessionStorage.getItem("customerToken");
+
+    // Guest users cannot use the authenticated nearby endpoint.
+    if (!token) {
+      const response = await fetch(`${API_URL}/api/restaurants`);
+
+      if (!response.ok) {
+        throw new Error(
+          `Restaurant API failed (${response.status}).`
+        );
+      }
+
+      const data = await response.json();
+
+      if (!Array.isArray(data)) {
+        throw new Error("Invalid restaurant data received.");
+      }
+
+      return data;
+    }
+
+    try {
+      const addressResponse = await fetch(
+        `${API_URL}/api/customers/addresses`,
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        }
+      );
+
+      if (!addressResponse.ok) {
+        console.warn(
+          "Unable to load customer addresses. Loading all restaurants instead."
+        );
+
+        const fallbackResponse = await fetch(
+          `${API_URL}/api/restaurants`
+        );
+
+        if (!fallbackResponse.ok) {
+          throw new Error(
+            `Restaurant API failed (${fallbackResponse.status}).`
+          );
+        }
+
+        const fallbackData = await fallbackResponse.json();
+
+        if (!Array.isArray(fallbackData)) {
+          throw new Error("Invalid restaurant data received.");
+        }
+
+        return fallbackData;
+      }
+
+      const addresses = await addressResponse.json();
+
+      if (!Array.isArray(addresses) || addresses.length === 0) {
+        console.info(
+          "Customer has no saved addresses. Loading all restaurants."
+        );
+
+        const fallbackResponse = await fetch(
+          `${API_URL}/api/restaurants`
+        );
+
+        if (!fallbackResponse.ok) {
+          throw new Error(
+            `Restaurant API failed (${fallbackResponse.status}).`
+          );
+        }
+
+        const fallbackData = await fallbackResponse.json();
+
+        if (!Array.isArray(fallbackData)) {
+          throw new Error("Invalid restaurant data received.");
+        }
+
+        return fallbackData;
+      }
+
+      const defaultAddress =
+        addresses.find(
+          (address) =>
+            address.defaultAddress === true ||
+            address.isDefault === true
+        ) || addresses[0];
+
+      const hasCoordinates =
+        defaultAddress &&
+        defaultAddress.latitude != null &&
+        defaultAddress.longitude != null;
+
+      if (!hasCoordinates) {
+        console.info(
+          "Customer address has no coordinates. Loading all restaurants."
+        );
+
+        const fallbackResponse = await fetch(
+          `${API_URL}/api/restaurants`
+        );
+
+        if (!fallbackResponse.ok) {
+          throw new Error(
+            `Restaurant API failed (${fallbackResponse.status}).`
+          );
+        }
+
+        const fallbackData = await fallbackResponse.json();
+
+        if (!Array.isArray(fallbackData)) {
+          throw new Error("Invalid restaurant data received.");
+        }
+
+        return fallbackData;
+      }
+
+      const nearbyResponse = await fetch(
+        `${API_URL}/api/restaurants/nearby?addressId=${defaultAddress.id}`,
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        }
+      );
+
+      if (!nearbyResponse.ok) {
+        console.warn(
+          "Nearby restaurant API failed. Loading all restaurants instead."
+        );
+
+        const fallbackResponse = await fetch(
+          `${API_URL}/api/restaurants`
+        );
+
+        if (!fallbackResponse.ok) {
+          throw new Error(
+            `Restaurant API failed (${fallbackResponse.status}).`
+          );
+        }
+
+        const fallbackData = await fallbackResponse.json();
+
+        if (!Array.isArray(fallbackData)) {
+          throw new Error("Invalid restaurant data received.");
+        }
+
+        return fallbackData;
+      }
+
+      const nearbyData = await nearbyResponse.json();
+
+      if (!Array.isArray(nearbyData)) {
+        throw new Error("Invalid nearby restaurant data received.");
+      }
+
+      return nearbyData;
+    } catch (err) {
+      console.error("Nearby restaurant loading error:", err);
+      throw err;
+    }
+  };
 
   useEffect(() => {
     const loadHomePageData = async () => {
@@ -203,17 +374,11 @@ function CustomerHome() {
       setError("");
 
       try {
-        const [restaurantResponse, cuisineResponse] =
+        const [restaurantData, cuisineResponse] =
           await Promise.all([
-            fetch(`${API_URL}/api/restaurants`),
+            loadRestaurantsNearCustomer(),
             fetch(`${API_URL}/api/restaurants/cuisines`),
           ]);
-
-        if (!restaurantResponse.ok) {
-          throw new Error(
-            `Restaurant API failed (${restaurantResponse.status}).`
-          );
-        }
 
         if (!cuisineResponse.ok) {
           throw new Error(
@@ -221,7 +386,6 @@ function CustomerHome() {
           );
         }
 
-        const restaurantData = await restaurantResponse.json();
         const cuisineData = await cuisineResponse.json();
 
         if (!Array.isArray(restaurantData)) {
@@ -248,7 +412,7 @@ function CustomerHome() {
     };
 
     loadHomePageData();
-  }, []);
+  }, [authVersion]);
 
   // Search restaurants safely by name, cuisine, or description.
   const visibleRestaurants = restaurants.filter((restaurant) => {
@@ -324,15 +488,7 @@ function CustomerHome() {
     setMessage("");
 
     try {
-      const response = await fetch(`${API_URL}/api/restaurants`);
-
-      if (!response.ok) {
-        throw new Error(
-          `Restaurant API failed (${response.status}).`
-        );
-      }
-
-      const data = await response.json();
+      const data = await loadRestaurantsNearCustomer();
 
       if (!Array.isArray(data)) {
         throw new Error("The restaurant API did not return a list.");
@@ -342,7 +498,9 @@ function CustomerHome() {
       setSearch("");
       setSelectedCuisine("All");
       setError("");
-      setMessage(`All ${data.length} restaurants loaded.`);
+      setMessage(
+        `Restaurants near your saved location loaded.`
+      );
     } catch (err) {
       console.error("View All Restaurants error:", err);
 
@@ -598,10 +756,12 @@ function CustomerHome() {
                     style={{ background: "#faf7ff" }}
                   >
                     <div style={{ fontSize: 28 }}>🔔</div>
-                    <div className="fw-semibold mt-2">No new notifications</div>
+                    <div className="fw-semibold mt-2">
+                      No new notifications
+                    </div>
                     <p className="small text-secondary mb-0 mt-1">
-                      Offers, order updates, and important Food Xpress announcements
-                      will appear here.
+                      Offers, order updates, and important Food Xpress
+                      announcements will appear here.
                     </p>
                   </div>
                 </div>
@@ -643,10 +803,9 @@ function CustomerHome() {
                   >
                     <div className="fw-bold">{customerName}</div>
                     <div className="small text-secondary">Customer</div>
+
                     {customerEmail && (
-                      <div
-                        className="small text-secondary text-break mt-1"
-                      >
+                      <div className="small text-secondary text-break mt-1">
                         {customerEmail}
                       </div>
                     )}
@@ -786,7 +945,6 @@ function CustomerHome() {
                 className="position-relative"
                 style={{ width: "100%", maxWidth: 560 }}
               >
-                {/* Food image */}
                 <div
                   className="position-relative overflow-hidden rounded-4 shadow customer-home-hero-image-box"
                   style={{ height: 260, backgroundColor: "#e5d0ff" }}
@@ -809,7 +967,6 @@ function CustomerHome() {
                     />
                   ))}
 
-                  {/* Food name label */}
                   <div
                     className="position-absolute bottom-0 start-0 m-3 px-3 py-2 rounded-pill fw-bold"
                     style={{
@@ -823,7 +980,6 @@ function CustomerHome() {
                   </div>
                 </div>
 
-                {/* Previous arrow */}
                 <button
                   type="button"
                   onClick={showPreviousHeroSlide}
@@ -843,7 +999,6 @@ function CustomerHome() {
                   ‹
                 </button>
 
-                {/* Next arrow */}
                 <button
                   type="button"
                   onClick={showNextHeroSlide}
@@ -863,7 +1018,6 @@ function CustomerHome() {
                   ›
                 </button>
 
-                {/* Carousel dots */}
                 <div className="d-flex justify-content-center align-items-center gap-2 mt-3">
                   {heroFoods.map((food, index) => (
                     <button
@@ -871,7 +1025,9 @@ function CustomerHome() {
                       type="button"
                       onClick={() => setHeroSlide(index)}
                       aria-label={`Show ${food.name}`}
-                      aria-current={heroSlide === index ? "true" : undefined}
+                      aria-current={
+                        heroSlide === index ? "true" : undefined
+                      }
                       className="border-0 rounded-pill"
                       style={{
                         width: heroSlide === index ? 25 : 9,
@@ -1084,13 +1240,28 @@ function CustomerHome() {
                       <div className="d-flex flex-wrap justify-content-between gap-2 text-secondary small mb-3">
                         <span>◷ {restaurant.time}</span>
 
-                        <span>
+                        {restaurant.distanceKm != null ? (
+                          <span className="fw-semibold" style={{ color: PURPLE }}>
+                            📍 {Number(restaurant.distanceKm).toFixed(1)} km away
+                          </span>
+                        ) : (
+                          <span>
+                            🚲{" "}
+                            {restaurant.freeDelivery
+                              ? "Free Delivery"
+                              : "Delivery charges apply"}
+                          </span>
+                        )}
+                      </div>
+
+                      {restaurant.distanceKm != null && (
+                        <div className="small text-secondary mb-3">
                           🚲{" "}
                           {restaurant.freeDelivery
                             ? "Free Delivery"
                             : "Delivery charges apply"}
-                        </span>
-                      </div>
+                        </div>
+                      )}
 
                       <button
                         type="button"

@@ -1,3 +1,4 @@
+
 package com.example.FoodXpress_backend.service;
 
 import com.example.FoodXpress_backend.dto.CouponRequest;
@@ -57,54 +58,83 @@ public class CustomerOrderService {
         this.razorpayPaymentService = razorpayPaymentService;
     }
 
-    // Get all orders belonging to a customer.
-    @Transactional(readOnly = true)
+    // ============================================================
+    // GET ALL CUSTOMER ORDERS
+    // ============================================================
+
+    @Transactional
     public List<CustomerOrderResponse> getCustomerOrders(Long customerId) {
 
         return orderRepository
                 .findByCustomer_IdOrderByOrderDateDesc(customerId)
                 .stream()
+                .map(this::synchronizeRefundStatus)
                 .map(this::toResponse)
                 .toList();
     }
 
-    // Get one order belonging to a customer.
-    @Transactional(readOnly = true)
-    public CustomerOrderResponse getOrder(Long customerId, Long orderId) {
+    // ============================================================
+    // GET ONE CUSTOMER ORDER
+    // ============================================================
 
-        return toResponse(findCustomerOrder(customerId, orderId));
+    @Transactional
+    public CustomerOrderResponse getOrder(
+            Long customerId,
+            Long orderId) {
+
+        CustomerOrder order =
+                findCustomerOrder(customerId, orderId);
+
+        synchronizeRefundStatus(order);
+
+        return toResponse(order);
     }
 
-    // Place a new order.
+    // ============================================================
+    // PLACE ORDER
+    // ============================================================
+
     @Transactional
     public CustomerOrderResponse placeOrder(
             Long customerId,
             PlaceOrderRequest request) {
 
         if (request == null || request.addressId() == null) {
+
             throw new ResponseStatusException(
                     HttpStatus.BAD_REQUEST,
                     "Please select a delivery address before placing your order."
             );
         }
 
-        Customer customer = customerRepository.findById(customerId)
-                .orElseThrow(() -> new ResponseStatusException(
-                        HttpStatus.NOT_FOUND,
-                        "Customer not found."
-                ));
+        Customer customer =
+                customerRepository.findById(customerId)
+                        .orElseThrow(() ->
+                                new ResponseStatusException(
+                                        HttpStatus.NOT_FOUND,
+                                        "Customer not found."
+                                )
+                        );
 
-        CustomerAddress address = addressRepository
-                .findByIdAndCustomer_Id(request.addressId(), customerId)
-                .orElseThrow(() -> new ResponseStatusException(
-                        HttpStatus.BAD_REQUEST,
-                        "The selected delivery address was not found."
-                ));
+        CustomerAddress address =
+                addressRepository
+                        .findByIdAndCustomer_Id(
+                                request.addressId(),
+                                customerId
+                        )
+                        .orElseThrow(() ->
+                                new ResponseStatusException(
+                                        HttpStatus.BAD_REQUEST,
+                                        "The selected delivery address was not found."
+                                )
+                        );
 
         List<CartItem> cartItems =
-                cartItemRepository.findByCustomer_IdOrderByIdAsc(customerId);
+                cartItemRepository
+                        .findByCustomer_IdOrderByIdAsc(customerId);
 
         if (cartItems.isEmpty()) {
+
             throw new ResponseStatusException(
                     HttpStatus.BAD_REQUEST,
                     "Your cart is empty."
@@ -116,9 +146,10 @@ public class CustomerOrderService {
         if (request.paymentMethod() != null
                 && !request.paymentMethod().isBlank()) {
 
-            paymentMethod = request.paymentMethod()
-                    .trim()
-                    .toUpperCase(Locale.ROOT);
+            paymentMethod =
+                    request.paymentMethod()
+                            .trim()
+                            .toUpperCase(Locale.ROOT);
         }
 
         if (!"RAZORPAY".equals(paymentMethod)
@@ -130,13 +161,14 @@ public class CustomerOrderService {
             );
         }
 
-        double subtotal = roundMoney(
-                cartItems.stream()
-                        .mapToDouble(item ->
-                                item.getFoodItem().getPrice()
-                                        * item.getQuantity())
-                        .sum()
-        );
+        double subtotal =
+                roundMoney(
+                        cartItems.stream()
+                                .mapToDouble(item ->
+                                        item.getFoodItem().getPrice()
+                                                * item.getQuantity())
+                                .sum()
+                );
 
         String couponCode = null;
         double discount = 0.0;
@@ -145,19 +177,27 @@ public class CustomerOrderService {
         if (request.couponCode() != null
                 && !request.couponCode().isBlank()) {
 
-            couponCode = request.couponCode()
-                    .trim()
-                    .toUpperCase(Locale.ROOT);
+            couponCode =
+                    request.couponCode()
+                            .trim()
+                            .toUpperCase(Locale.ROOT);
 
-            CouponResponse coupon = cartService.applyCoupon(
-                    customerId,
-                    new CouponRequest(couponCode)
-            );
+            CouponResponse coupon =
+                    cartService.applyCoupon(
+                            customerId,
+                            new CouponRequest(couponCode)
+                    );
 
-            discount = roundMoney(coupon.discountAmount());
-            total = roundMoney(coupon.totalAmount());
+            discount =
+                    roundMoney(coupon.discountAmount());
 
-            if (discount < 0 || total < 0 || total > subtotal) {
+            total =
+                    roundMoney(coupon.totalAmount());
+
+            if (discount < 0
+                    || total < 0
+                    || total > subtotal) {
+
                 throw new ResponseStatusException(
                         HttpStatus.BAD_REQUEST,
                         "Invalid coupon calculation."
@@ -165,14 +205,15 @@ public class CustomerOrderService {
             }
         }
 
-        CustomerOrder order = new CustomerOrder(
-                customer,
-                couponCode,
-                subtotal,
-                discount,
-                total,
-                paymentMethod
-        );
+        CustomerOrder order =
+                new CustomerOrder(
+                        customer,
+                        couponCode,
+                        subtotal,
+                        discount,
+                        total,
+                        paymentMethod
+                );
 
         order.setAddressLabel(address.getLabel());
         order.setRecipientName(address.getRecipientName());
@@ -184,46 +225,62 @@ public class CustomerOrderService {
 
         for (CartItem cartItem : cartItems) {
 
-            OrderItem orderItem = new OrderItem(
-                    cartItem.getFoodItem().getName(),
-                    cartItem.getFoodItem().getRestaurant(),
-                    cartItem.getFoodItem().getPrice(),
-                    cartItem.getQuantity(),
-                    cartItem.getFoodItem().getImageUrl()
-            );
+            OrderItem orderItem =
+                    new OrderItem(
+                            cartItem.getFoodItem().getName(),
+                            cartItem.getFoodItem().getRestaurant(),
+                            cartItem.getFoodItem().getPrice(),
+                            cartItem.getQuantity(),
+                            cartItem.getFoodItem().getImageUrl()
+                    );
 
             order.addItem(orderItem);
         }
 
-        CustomerOrder savedOrder = orderRepository.save(order);
+        CustomerOrder savedOrder =
+                orderRepository.save(order);
 
-        // COD order is placed successfully, so record coupon usage now.
-        // Razorpay coupon usage is recorded only after payment verification.
-        if ("COD".equals(paymentMethod) && couponCode != null) {
+        // COD order is placed successfully,
+        // so record coupon usage now.
+        //
+        // Razorpay coupon usage is recorded only
+        // after payment verification.
+        if ("COD".equals(paymentMethod)
+                && couponCode != null) {
+
             cartService.recordCouponUsage(couponCode);
         }
 
+        // Remove ordered items from cart.
         cartItemRepository.deleteByCustomer_Id(customerId);
 
         return toResponse(savedOrder);
     }
 
-    // Create Razorpay checkout order.
+    // ============================================================
+    // CREATE RAZORPAY CHECKOUT ORDER
+    // ============================================================
+
     @Transactional
     public RazorpayOrderResponse createRazorpayOrder(
             Long customerId,
             Long orderId) {
 
-        CustomerOrder order = findCustomerOrder(customerId, orderId);
+        CustomerOrder order =
+                findCustomerOrder(customerId, orderId);
 
-        if (!"RAZORPAY".equalsIgnoreCase(order.getPaymentMethod())) {
+        if (!"RAZORPAY".equalsIgnoreCase(
+                order.getPaymentMethod())) {
+
             throw new ResponseStatusException(
                     HttpStatus.BAD_REQUEST,
                     "This order uses Cash on Delivery, not Razorpay."
             );
         }
 
-        if ("CANCELLED".equalsIgnoreCase(order.getStatus())) {
+        if ("CANCELLED".equalsIgnoreCase(
+                order.getStatus())) {
+
             throw new ResponseStatusException(
                     HttpStatus.BAD_REQUEST,
                     "A cancelled order cannot be paid."
@@ -231,7 +288,8 @@ public class CustomerOrderService {
         }
 
         if ("PAID".equalsIgnoreCase(order.getStatus())
-                || "PAID".equalsIgnoreCase(order.getPaymentStatus())) {
+                || "PAID".equalsIgnoreCase(
+                        order.getPaymentStatus())) {
 
             throw new ResponseStatusException(
                     HttpStatus.CONFLICT,
@@ -240,6 +298,7 @@ public class CustomerOrderService {
         }
 
         if (!isPendingPayment(order)) {
+
             throw new ResponseStatusException(
                     HttpStatus.CONFLICT,
                     "This order is not awaiting online payment."
@@ -247,23 +306,30 @@ public class CustomerOrderService {
         }
 
         RazorpayOrderResponse response =
-                razorpayPaymentService.createCheckoutOrder(order);
+                razorpayPaymentService
+                        .createCheckoutOrder(order);
 
         orderRepository.save(order);
 
         return response;
     }
 
-    // Verify Razorpay payment.
+    // ============================================================
+    // VERIFY RAZORPAY PAYMENT
+    // ============================================================
+
     @Transactional
     public CustomerOrderResponse verifyRazorpayPayment(
             Long customerId,
             Long orderId,
             VerifyRazorpayPaymentRequest request) {
 
-        CustomerOrder order = findCustomerOrder(customerId, orderId);
+        CustomerOrder order =
+                findCustomerOrder(customerId, orderId);
 
-        if (!"RAZORPAY".equalsIgnoreCase(order.getPaymentMethod())) {
+        if (!"RAZORPAY".equalsIgnoreCase(
+                order.getPaymentMethod())) {
+
             throw new ResponseStatusException(
                     HttpStatus.BAD_REQUEST,
                     "This order is not an online Razorpay order."
@@ -271,15 +337,18 @@ public class CustomerOrderService {
         }
 
         if (request == null) {
+
             throw new ResponseStatusException(
                     HttpStatus.BAD_REQUEST,
                     "Payment verification details are required."
             );
         }
 
-        // Already paid: return the existing order without counting twice.
+        // Already paid:
+        // return the existing order without counting twice.
         if ("PAID".equalsIgnoreCase(order.getStatus())
-                || "PAID".equalsIgnoreCase(order.getPaymentStatus())) {
+                || "PAID".equalsIgnoreCase(
+                        order.getPaymentStatus())) {
 
             if (request.razorpayPaymentId() != null
                     && request.razorpayPaymentId().equals(
@@ -294,7 +363,9 @@ public class CustomerOrderService {
             );
         }
 
-        if ("CANCELLED".equalsIgnoreCase(order.getStatus())) {
+        if ("CANCELLED".equalsIgnoreCase(
+                order.getStatus())) {
+
             throw new ResponseStatusException(
                     HttpStatus.BAD_REQUEST,
                     "A cancelled order cannot be paid."
@@ -302,6 +373,7 @@ public class CustomerOrderService {
         }
 
         if (!isPendingPayment(order)) {
+
             throw new ResponseStatusException(
                     HttpStatus.CONFLICT,
                     "This order is not awaiting payment."
@@ -309,45 +381,73 @@ public class CustomerOrderService {
         }
 
         // Verify payment with Razorpay first.
-        razorpayPaymentService.verifyPayment(order, request);
+        razorpayPaymentService.verifyPayment(
+                order,
+                request
+        );
 
-        order.setRazorpayPaymentId(request.razorpayPaymentId());
-        order.setRazorpayPaymentSignature(request.razorpaySignature());
+        order.setRazorpayPaymentId(
+                request.razorpayPaymentId()
+        );
+
+        order.setRazorpayPaymentSignature(
+                request.razorpaySignature()
+        );
+
         order.setPaymentStatus("PAID");
         order.setStatus("PAID");
 
-        CustomerOrder savedOrder = orderRepository.save(order);
+        CustomerOrder savedOrder =
+                orderRepository.save(order);
 
-        // Count coupon usage only after successful Razorpay verification.
+        // Count coupon usage only after
+        // successful Razorpay verification.
         if (savedOrder.getCouponCode() != null
                 && !savedOrder.getCouponCode().isBlank()) {
 
-            cartService.recordCouponUsage(savedOrder.getCouponCode());
+            cartService.recordCouponUsage(
+                    savedOrder.getCouponCode()
+            );
         }
 
         return toResponse(savedOrder);
     }
 
-    // Cancel an order and synchronize its Razorpay refund.
+    // ============================================================
+    // CANCEL ORDER
+    // ============================================================
+
     @Transactional
     public CustomerOrderResponse cancelOrder(
             Long customerId,
             Long orderId,
             String reason) {
 
-        CustomerOrder order = findCustomerOrder(customerId, orderId);
+        CustomerOrder order =
+                findCustomerOrder(customerId, orderId);
 
-        // If cancellation and refund are already recorded, return them.
-        if ("CANCELLED".equalsIgnoreCase(order.getStatus())
+        // If cancellation and refund are already recorded,
+        // return them.
+        if ("CANCELLED".equalsIgnoreCase(
+                order.getStatus())
                 && order.getRefundId() != null
                 && !order.getRefundId().isBlank()) {
+
+            // Synchronize the latest refund status before
+            // returning the order.
+            synchronizeRefundStatus(order);
 
             return toResponse(order);
         }
 
-        if ("PREPARING".equalsIgnoreCase(order.getStatus())
-                || "OUT_FOR_DELIVERY".equalsIgnoreCase(order.getStatus())
-                || "DELIVERED".equalsIgnoreCase(order.getStatus())) {
+        // Orders that have progressed too far
+        // cannot be cancelled.
+        if ("PREPARING".equalsIgnoreCase(
+                order.getStatus())
+                || "OUT_FOR_DELIVERY".equalsIgnoreCase(
+                        order.getStatus())
+                || "DELIVERED".equalsIgnoreCase(
+                        order.getStatus())) {
 
             throw new ResponseStatusException(
                     HttpStatus.CONFLICT,
@@ -355,36 +455,73 @@ public class CustomerOrderService {
             );
         }
 
-        // COD cancellation does not require a refund.
-        if ("COD".equalsIgnoreCase(order.getPaymentMethod())) {
+        // ========================================================
+        // COD CANCELLATION
+        // ========================================================
+
+        if ("COD".equalsIgnoreCase(
+                order.getPaymentMethod())) {
 
             order.setStatus("CANCELLED");
-            order.setPaymentStatus("NOT_APPLICABLE");
-            order.setCancellationReason(normalizeReason(reason));
 
-            return toResponse(orderRepository.save(order));
+            order.setPaymentStatus(
+                    "NOT_APPLICABLE"
+            );
+
+            order.setCancellationReason(
+                    normalizeReason(reason)
+            );
+
+            return toResponse(
+                    orderRepository.save(order)
+            );
         }
 
-        if (!"RAZORPAY".equalsIgnoreCase(order.getPaymentMethod())) {
+        // ========================================================
+        // PAYMENT METHOD CHECK
+        // ========================================================
+
+        if (!"RAZORPAY".equalsIgnoreCase(
+                order.getPaymentMethod())) {
+
             throw new ResponseStatusException(
                     HttpStatus.BAD_REQUEST,
                     "Unsupported payment method."
             );
         }
 
+        // An order is considered paid if:
+        // 1. payment status says PAID, OR
+        // 2. a Razorpay payment ID exists.
         boolean paid =
-                "PAID".equalsIgnoreCase(order.getPaymentStatus())
-                || order.getRazorpayPaymentId() != null;
+                "PAID".equalsIgnoreCase(
+                        order.getPaymentStatus())
+                        || order.getRazorpayPaymentId() != null;
 
-        // Unpaid Razorpay order: cancel without a refund.
+        // ========================================================
+        // UNPAID RAZORPAY ORDER
+        // ========================================================
+
         if (!paid) {
 
             order.setStatus("CANCELLED");
-            order.setPaymentStatus("CANCELLED");
-            order.setCancellationReason(normalizeReason(reason));
 
-            return toResponse(orderRepository.save(order));
+            order.setPaymentStatus(
+                    "CANCELLED"
+            );
+
+            order.setCancellationReason(
+                    normalizeReason(reason)
+            );
+
+            return toResponse(
+                    orderRepository.save(order)
+            );
         }
+
+        // ========================================================
+        // PAYMENT ID REQUIRED
+        // ========================================================
 
         if (order.getRazorpayPaymentId() == null
                 || order.getRazorpayPaymentId().isBlank()) {
@@ -395,29 +532,48 @@ public class CustomerOrderService {
             );
         }
 
+        // ========================================================
+        // REFUND PROCESS
+        // ========================================================
+
         try {
 
-            // First, check Razorpay for an existing refund.
+            // First check Razorpay for an existing refund.
             List<Refund> existingRefunds =
-                    razorpayPaymentService.fetchExistingRefunds(order);
+                    razorpayPaymentService
+                            .fetchExistingRefunds(order);
 
-            if (existingRefunds != null && !existingRefunds.isEmpty()) {
+            if (existingRefunds != null
+                    && !existingRefunds.isEmpty()) {
 
-                Refund existingRefund = existingRefunds.get(0);
+                Refund existingRefund =
+                        razorpayPaymentService
+                                .fetchLatestRefund(order);
 
-                Object refundIdValue = existingRefund.get("id");
-                Object refundStatusValue = existingRefund.get("status");
+                if (existingRefund == null) {
 
-                String refundId = refundIdValue == null
-                        ? null
-                        : refundIdValue.toString();
+                    throw new ResponseStatusException(
+                            HttpStatus.BAD_GATEWAY,
+                            "Razorpay returned refund details that could not be read."
+                    );
+                }
 
-                String refundStatus = refundStatusValue == null
-                        ? null
-                        : refundStatusValue.toString();
+                String refundId =
+                        getRefundValue(
+                                existingRefund,
+                                "id"
+                        );
 
-                if (refundId == null || refundId.isBlank()
-                        || refundStatus == null || refundStatus.isBlank()) {
+                String refundStatus =
+                        getRefundValue(
+                                existingRefund,
+                                "status"
+                        );
+
+                if (refundId == null
+                        || refundId.isBlank()
+                        || refundStatus == null
+                        || refundStatus.isBlank()) {
 
                     throw new ResponseStatusException(
                             HttpStatus.BAD_GATEWAY,
@@ -432,26 +588,33 @@ public class CustomerOrderService {
                         reason
                 );
 
-                return toResponse(orderRepository.save(order));
+                return toResponse(
+                        orderRepository.save(order)
+                );
             }
 
-            // Only create a new refund when no existing refund is found.
+            // No refund exists yet.
+            // Create a new full refund.
             Refund refund =
-                    razorpayPaymentService.refundPayment(order);
+                    razorpayPaymentService
+                            .refundPayment(order);
 
-            Object refundIdValue = refund.get("id");
-            Object refundStatusValue = refund.get("status");
+            String refundId =
+                    getRefundValue(
+                            refund,
+                            "id"
+                    );
 
-            String refundId = refundIdValue == null
-                    ? null
-                    : refundIdValue.toString();
+            String refundStatus =
+                    getRefundValue(
+                            refund,
+                            "status"
+                    );
 
-            String refundStatus = refundStatusValue == null
-                    ? null
-                    : refundStatusValue.toString();
-
-            if (refundId == null || refundId.isBlank()
-                    || refundStatus == null || refundStatus.isBlank()) {
+            if (refundId == null
+                    || refundId.isBlank()
+                    || refundStatus == null
+                    || refundStatus.isBlank()) {
 
                 throw new ResponseStatusException(
                         HttpStatus.BAD_GATEWAY,
@@ -466,18 +629,144 @@ public class CustomerOrderService {
                     reason
             );
 
-            return toResponse(orderRepository.save(order));
+            return toResponse(
+                    orderRepository.save(order)
+            );
 
-        } catch (RazorpayException ex) {
+        } catch (RazorpayException exception) {
 
             throw new ResponseStatusException(
                     HttpStatus.BAD_GATEWAY,
-                    "Unable to confirm the refund with Razorpay. Please check the Razorpay dashboard before retrying."
+                    "Unable to confirm the refund with Razorpay. "
+                            + "Please check the Razorpay dashboard before retrying."
             );
         }
     }
 
-    // Save refund information received from Razorpay.
+    // ============================================================
+    // SYNCHRONIZE REFUND STATUS WITH RAZORPAY
+    // ============================================================
+
+    private CustomerOrder synchronizeRefundStatus(
+            CustomerOrder order) {
+
+        if (order == null) {
+            return null;
+        }
+
+        // Only Razorpay orders can have refunds.
+        if (!"RAZORPAY".equalsIgnoreCase(
+                order.getPaymentMethod())) {
+
+            return order;
+        }
+
+        // Only cancelled orders should have refunds.
+        if (!"CANCELLED".equalsIgnoreCase(
+                order.getStatus())) {
+
+            return order;
+        }
+
+        // We need the Razorpay payment ID.
+        if (order.getRazorpayPaymentId() == null
+                || order.getRazorpayPaymentId().isBlank()) {
+
+            return order;
+        }
+
+        // No refund ID means there is nothing
+        // to synchronize yet.
+        if (order.getRefundId() == null
+                || order.getRefundId().isBlank()) {
+
+            return order;
+        }
+
+        try {
+
+            Refund latestRefund =
+                    razorpayPaymentService
+                            .fetchLatestRefund(order);
+
+            if (latestRefund == null) {
+                return order;
+            }
+
+            String refundId =
+                    getRefundValue(
+                            latestRefund,
+                            "id"
+                    );
+
+            String refundStatus =
+                    getRefundValue(
+                            latestRefund,
+                            "status"
+                    );
+
+            if (refundId == null
+                    || refundId.isBlank()
+                    || refundStatus == null
+                    || refundStatus.isBlank()) {
+
+                return order;
+            }
+
+            // Update the database with the latest
+            // Razorpay refund status.
+            saveRefundDetails(
+                    order,
+                    refundId,
+                    refundStatus,
+                    order.getCancellationReason()
+            );
+
+            orderRepository.save(order);
+
+            return order;
+
+        } catch (RazorpayException exception) {
+
+            // Do not break the customer's Orders page
+            // if Razorpay is temporarily unavailable.
+            //
+            // The next request can try synchronization again.
+            return order;
+        }
+    }
+
+    // ============================================================
+    // GET REFUND VALUE
+    // ============================================================
+
+    private String getRefundValue(
+            Refund refund,
+            String key) {
+
+        if (refund == null) {
+            return null;
+        }
+
+        Object value =
+                refund.get(key);
+
+        if (value == null) {
+            return null;
+        }
+
+        String result =
+                value.toString().trim();
+
+        return result.isBlank()
+                ? null
+                : result;
+    }
+
+    // ============================================================
+    // SAVE REFUND DETAILS
+    // ============================================================
+
     private void saveRefundDetails(
             CustomerOrder order,
             String refundId,
@@ -485,43 +774,77 @@ public class CustomerOrderService {
             String reason) {
 
         String normalizedStatus =
-                refundStatus.toUpperCase(Locale.ROOT);
+                refundStatus
+                        .toUpperCase(Locale.ROOT);
 
         order.setRefundId(refundId);
-        order.setRefundStatus(normalizedStatus);
-        order.setRefundDate(LocalDateTime.now());
-        order.setCancellationReason(normalizeReason(reason));
+
+        order.setRefundStatus(
+                normalizedStatus
+        );
+
+        order.setRefundDate(
+                LocalDateTime.now()
+        );
+
+        order.setCancellationReason(
+                normalizeReason(reason)
+        );
+
         order.setStatus("CANCELLED");
 
-        if ("PROCESSED".equals(normalizedStatus)) {
-            order.setPaymentStatus("REFUNDED");
+        // Razorpay refund states:
+        //
+        // PROCESSED -> refund completed
+        // FAILED    -> refund failed
+        // CREATED/PENDING/OTHER -> refund pending
+        if ("PROCESSED".equals(
+                normalizedStatus)) {
 
-        } else if ("FAILED".equals(normalizedStatus)) {
-            order.setPaymentStatus("REFUND_FAILED");
+            order.setPaymentStatus(
+                    "REFUNDED"
+            );
+
+        } else if ("FAILED".equals(
+                normalizedStatus)) {
+
+            order.setPaymentStatus(
+                    "REFUND_FAILED"
+            );
 
         } else {
-            order.setPaymentStatus("REFUND_PENDING");
+
+            order.setPaymentStatus(
+                    "REFUND_PENDING"
+            );
         }
     }
 
-    // Convert an order entity into its response DTO.
-    private CustomerOrderResponse toResponse(CustomerOrder order) {
+    // ============================================================
+    // CONVERT ORDER ENTITY TO RESPONSE DTO
+    // ============================================================
 
-        List<OrderItemResponse> items = order.getItems()
-                .stream()
-                .map(item -> new OrderItemResponse(
-                        item.getId(),
-                        item.getFoodName(),
-                        item.getRestaurantName(),
-                        item.getUnitPrice(),
-                        item.getQuantity(),
-                        item.getSubtotal(),
-                        item.getImageUrl(),
-                        item.getRestaurant() != null
-                                ? item.getRestaurant().getId()
-                                : null
-                ))
-                .toList();
+    private CustomerOrderResponse toResponse(
+            CustomerOrder order) {
+
+        List<OrderItemResponse> items =
+                order.getItems()
+                        .stream()
+                        .map(item ->
+                                new OrderItemResponse(
+                                        item.getId(),
+                                        item.getFoodName(),
+                                        item.getRestaurantName(),
+                                        item.getUnitPrice(),
+                                        item.getQuantity(),
+                                        item.getSubtotal(),
+                                        item.getImageUrl(),
+                                        item.getRestaurant() != null
+                                                ? item.getRestaurant().getId()
+                                                : null
+                                )
+                        )
+                        .toList();
 
         return new CustomerOrderResponse(
                 order.getId(),
@@ -542,19 +865,26 @@ public class CustomerOrderService {
         );
     }
 
-    // Find an order and verify that it belongs to this customer.
+    // ============================================================
+    // FIND CUSTOMER ORDER
+    // ============================================================
+
     private CustomerOrder findCustomerOrder(
             Long customerId,
             Long orderId) {
 
-        CustomerOrder order = orderRepository.findById(orderId)
-                .orElseThrow(() -> new ResponseStatusException(
-                        HttpStatus.NOT_FOUND,
-                        "Order not found."
-                ));
+        CustomerOrder order =
+                orderRepository.findById(orderId)
+                        .orElseThrow(() ->
+                                new ResponseStatusException(
+                                        HttpStatus.NOT_FOUND,
+                                        "Order not found."
+                                )
+                        );
 
         if (order.getCustomer() == null
-                || !customerId.equals(order.getCustomer().getId())) {
+                || !customerId.equals(
+                        order.getCustomer().getId())) {
 
             throw new ResponseStatusException(
                     HttpStatus.NOT_FOUND,
@@ -565,33 +895,60 @@ public class CustomerOrderService {
         return order;
     }
 
-    // Check whether an order is awaiting payment.
-    private boolean isPendingPayment(CustomerOrder order) {
+    // ============================================================
+    // CHECK PENDING PAYMENT
+    // ============================================================
 
-        return "PENDING_PAYMENT".equalsIgnoreCase(order.getStatus())
-                || "PENDING".equalsIgnoreCase(order.getStatus())
-                || "PENDING".equalsIgnoreCase(order.getPaymentStatus())
-                || "CREATED".equalsIgnoreCase(order.getPaymentStatus());
+    private boolean isPendingPayment(
+            CustomerOrder order) {
+
+        return "PENDING_PAYMENT".equalsIgnoreCase(
+                order.getStatus())
+
+                || "PENDING".equalsIgnoreCase(
+                        order.getStatus())
+
+                || "PENDING".equalsIgnoreCase(
+                        order.getPaymentStatus())
+
+                || "CREATED".equalsIgnoreCase(
+                        order.getPaymentStatus());
     }
 
-    // Normalize the cancellation reason.
-    private String normalizeReason(String reason) {
+    // ============================================================
+    // NORMALIZE CANCELLATION REASON
+    // ============================================================
 
-        if (reason == null || reason.isBlank()) {
+    private String normalizeReason(
+            String reason) {
+
+        if (reason == null
+                || reason.isBlank()) {
+
             return "Cancelled by customer.";
         }
 
-        String normalized = reason.trim();
+        String normalized =
+                reason.trim();
 
         if (normalized.length() > 500) {
-            normalized = normalized.substring(0, 500);
+
+            normalized =
+                    normalized.substring(0, 500);
         }
 
         return normalized;
     }
 
-    // Round monetary values to two decimal places.
-    private double roundMoney(double amount) {
-        return Math.round(amount * 100.0) / 100.0;
+    // ============================================================
+    // ROUND MONEY
+    // ============================================================
+
+    private double roundMoney(
+            double amount) {
+
+        return Math.round(
+                amount * 100.0
+        ) / 100.0;
     }
 }

@@ -1,4 +1,3 @@
-
 package com.example.FoodXpress_backend.service;
 
 import com.example.FoodXpress_backend.dto.CustomerAddressRequest;
@@ -36,7 +35,7 @@ public class CustomerAddressService {
         return addressRepository
                 .findByCustomer_IdOrderByIdDesc(customerId)
                 .stream()
-                .map(address -> toResponse(address))
+                .map(this::toResponse)
                 .toList();
     }
 
@@ -68,7 +67,12 @@ public class CustomerAddressService {
                 request.city().trim(),
                 request.state().trim(),
                 request.pincode().trim(),
-                makeDefault
+                makeDefault,
+                request.latitude(),
+                request.longitude(),
+                request.formattedAddress() == null
+                        ? null
+                        : request.formattedAddress().trim()
         );
 
         return toResponse(addressRepository.save(address));
@@ -95,6 +99,16 @@ public class CustomerAddressService {
         address.setCity(request.city().trim());
         address.setState(request.state().trim());
         address.setPincode(request.pincode().trim());
+
+        // Update map location.
+        address.setLatitude(request.latitude());
+        address.setLongitude(request.longitude());
+
+        address.setFormattedAddress(
+                request.formattedAddress() == null
+                        ? null
+                        : request.formattedAddress().trim()
+        );
 
         address.setDefaultAddress(
                 request.defaultAddress()
@@ -159,7 +173,10 @@ public class CustomerAddressService {
                 address.getCity(),
                 address.getState(),
                 address.getPincode(),
-                address.isDefaultAddress()
+                address.isDefaultAddress(),
+                address.getLatitude(),
+                address.getLongitude(),
+                address.getFormattedAddress()
         );
     }
 }

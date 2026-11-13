@@ -1,4 +1,3 @@
-
 package com.example.FoodXpress_backend.dto;
 
 import com.example.FoodXpress_backend.entity.FoodItem;
@@ -11,10 +10,17 @@ public record FoodItemResponse(
         double price,
         String imageUrl,
         boolean available,
-        boolean vegetarian
+        boolean vegetarian,
+
+        // Restaurant information
+        Long restaurantId,
+        String restaurantName
 ) {
 
-    // Constructor used by RestaurantFoodService
+    // ---------------------------------------------------------
+    // EXISTING CONSTRUCTOR
+    // ---------------------------------------------------------
+
     public FoodItemResponse(FoodItem food) {
         this(
                 food.getId(),
@@ -24,11 +30,20 @@ public record FoodItemResponse(
                 food.getPrice(),
                 food.getImageUrl(),
                 food.isAvailable(),
-                food.isVegetarian()
+                food.isVegetarian(),
+                food.getRestaurant() != null
+                        ? food.getRestaurant().getId()
+                        : null,
+                food.getRestaurant() != null
+                        ? food.getRestaurant().getName()
+                        : null
         );
     }
 
-    // Backward-compatible constructor used by FoodItemService
+    // ---------------------------------------------------------
+    // BACKWARD-COMPATIBLE CONSTRUCTOR
+    // ---------------------------------------------------------
+
     public FoodItemResponse(
             Long id,
             String name,
@@ -46,7 +61,37 @@ public record FoodItemResponse(
                 price,
                 imageUrl,
                 true,
-                vegetarian
+                vegetarian,
+                null,
+                null
+        );
+    }
+
+    // ---------------------------------------------------------
+    // CONSTRUCTOR FOR EXISTING MENU RESPONSE
+    // ---------------------------------------------------------
+
+    public FoodItemResponse(
+            Long id,
+            String name,
+            String description,
+            String category,
+            double price,
+            String imageUrl,
+            boolean available,
+            boolean vegetarian
+    ) {
+        this(
+                id,
+                name,
+                description,
+                category,
+                price,
+                imageUrl,
+                available,
+                vegetarian,
+                null,
+                null
         );
     }
 }

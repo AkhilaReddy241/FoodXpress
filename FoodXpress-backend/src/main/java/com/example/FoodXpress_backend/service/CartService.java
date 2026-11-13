@@ -1,4 +1,3 @@
-
 package com.example.FoodXpress_backend.service;
 
 import com.example.FoodXpress_backend.dto.AddCartItemRequest;
@@ -150,12 +149,15 @@ public class CartService {
                 .orElse(null);
 
         if (cartItem == null) {
+
             cartItem = new CartItem(
                     customer,
                     foodItem,
                     request.quantity()
             );
+
         } else {
+
             int newQuantity =
                     cartItem.getQuantity() + request.quantity();
 
@@ -167,6 +169,10 @@ public class CartService {
             }
 
             cartItem.setQuantity(newQuantity);
+
+            // Customer is active in the cart again.
+            // Allow a new abandoned-cart reminder later.
+            cartItem.setReminderSent(false);
         }
 
         cartItemRepository.saveAndFlush(cartItem);
@@ -188,6 +194,11 @@ public class CartService {
                 findCustomerCartItem(customerId, cartItemId);
 
         cartItem.setQuantity(request.quantity());
+
+        // Customer changed the cart.
+        // Reset the reminder so the customer can receive
+        // another reminder after the new inactivity period.
+        cartItem.setReminderSent(false);
 
         cartItemRepository.saveAndFlush(cartItem);
 
@@ -275,7 +286,8 @@ public class CartService {
             Long customerId,
             CouponRequest request) {
 
-        if (request == null || request.code() == null
+        if (request == null
+                || request.code() == null
                 || request.code().isBlank()) {
 
             throw new ResponseStatusException(
@@ -341,7 +353,8 @@ public class CartService {
             );
         }
 
-        BigDecimal minimumAmount = coupon.getMinimumOrderAmount();
+        BigDecimal minimumAmount =
+                coupon.getMinimumOrderAmount();
 
         double minimumOrder = minimumAmount == null
                 ? 0.0
@@ -350,13 +363,16 @@ public class CartService {
         if (subtotal < minimumOrder) {
             throw new ResponseStatusException(
                     HttpStatus.BAD_REQUEST,
-                    "Minimum order amount for " + code + " is Rs. "
-                            + roundMoney(minimumOrder) + "."
+                    "Minimum order amount for " + code
+                            + " is Rs. "
+                            + roundMoney(minimumOrder)
+                            + "."
             );
         }
 
         if (coupon.getDiscountValue() == null
-                || coupon.getDiscountValue().compareTo(BigDecimal.ZERO) <= 0) {
+                || coupon.getDiscountValue()
+                .compareTo(BigDecimal.ZERO) <= 0) {
 
             throw new ResponseStatusException(
                     HttpStatus.BAD_REQUEST,
@@ -364,7 +380,9 @@ public class CartService {
             );
         }
 
-        double discountValue = coupon.getDiscountValue().doubleValue();
+        double discountValue =
+                coupon.getDiscountValue().doubleValue();
+
         double discount;
 
         String discountType = coupon.getDiscountType()
@@ -380,7 +398,8 @@ public class CartService {
                 );
             }
 
-            discount = subtotal * discountValue / 100.0;
+            discount =
+                    subtotal * discountValue / 100.0;
 
             if (coupon.getMaximumDiscount() != null) {
                 discount = Math.min(
@@ -401,9 +420,11 @@ public class CartService {
             );
         }
 
-        discount = roundMoney(Math.min(discount, subtotal));
+        discount =
+                roundMoney(Math.min(discount, subtotal));
 
-        double finalTotal = roundMoney(subtotal - discount);
+        double finalTotal =
+                roundMoney(subtotal - discount);
 
         return new CouponResponse(
                 code,
@@ -429,13 +450,16 @@ public class CartService {
                 .findByCodeIgnoreCaseForUpdate(code.trim())
                 .orElse(null);
 
-        // An Admin may have removed the coupon after an order was placed.
+        // An Admin may have removed the coupon after
+        // an order was placed.
         // Do not prevent an already-paid order from being confirmed.
         if (coupon == null) {
             return;
         }
 
-        coupon.setUsedCount(coupon.getUsedCount() + 1);
+        coupon.setUsedCount(
+                coupon.getUsedCount() + 1
+        );
 
         couponRepository.save(coupon);
     }

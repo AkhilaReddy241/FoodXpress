@@ -1,120 +1,56 @@
-
 package com.example.FoodXpress_backend.dto;
 
-public class RestaurantOwnerProfileResponse {
+public record RestaurantOwnerProfileResponse(
 
-    private Long id;
-    private String restaurantName;
-    private String email;
-    private String phone;
-    private String address;
-    private String cuisine;
+        Long id,
 
-    // Restaurant owner's account status.
-    private boolean active;
+        String restaurantName,
 
-    // Restaurant approval and operating status.
-    private String approvalStatus;
-    private boolean restaurantActive;
+        String email,
 
-    private String description;
-    private String imageUrl;
-    private int deliveryTimeMinutes;
-    private double deliveryCharge;
-    private boolean freeDelivery;
-    private double rating;
+        String phone,
 
-    public RestaurantOwnerProfileResponse(
-            Long id,
-            String restaurantName,
-            String email,
-            String phone,
-            String address,
-            String cuisine,
-            boolean active,
-            String approvalStatus,
-            boolean restaurantActive,
-            String description,
-            String imageUrl,
-            int deliveryTimeMinutes,
-            double deliveryCharge,
-            boolean freeDelivery,
-            double rating) {
+        String address,
 
-        this.id = id;
-        this.restaurantName = restaurantName;
-        this.email = email;
-        this.phone = phone;
-        this.address = address;
-        this.cuisine = cuisine;
-        this.active = active;
-        this.approvalStatus = approvalStatus;
-        this.restaurantActive = restaurantActive;
-        this.description = description;
-        this.imageUrl = imageUrl;
-        this.deliveryTimeMinutes = deliveryTimeMinutes;
-        this.deliveryCharge = deliveryCharge;
-        this.freeDelivery = freeDelivery;
-        this.rating = rating;
-    }
+        String street,
 
-    public Long getId() {
-        return id;
-    }
+        String city,
 
-    public String getRestaurantName() {
-        return restaurantName;
-    }
+        String state,
 
-    public String getEmail() {
-        return email;
-    }
+        String pincode,
 
-    public String getPhone() {
-        return phone;
-    }
+        String cuisine,
 
-    public String getAddress() {
-        return address;
-    }
+        boolean active,
 
-    public String getCuisine() {
-        return cuisine;
-    }
+        String approvalStatus,
 
-    public boolean isActive() {
-        return active;
-    }
+        boolean restaurantActive,
 
-    public String getApprovalStatus() {
-        return approvalStatus;
-    }
+        String description,
 
-    public boolean isRestaurantActive() {
-        return restaurantActive;
-    }
+        String imageUrl,
 
-    public String getDescription() {
-        return description;
-    }
+        int deliveryTimeMinutes,
 
-    public String getImageUrl() {
-        return imageUrl;
-    }
+        double deliveryCharge,
 
-    public int getDeliveryTimeMinutes() {
-        return deliveryTimeMinutes;
-    }
+        boolean freeDelivery,
 
-    public double getDeliveryCharge() {
-        return deliveryCharge;
-    }
+        double rating,
 
-    public boolean isFreeDelivery() {
-        return freeDelivery;
-    }
+        String openingTime,
 
-    public double getRating() {
-        return rating;
-    }
+        String closingTime,
+
+        String openingHours,
+
+        boolean open,
+
+        Double latitude,
+
+        Double longitude
+
+) {
 }

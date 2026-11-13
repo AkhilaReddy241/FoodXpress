@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
+import { GoogleLogin } from "@react-oauth/google";
 
 const API_URL = import.meta.env.DEV
   ? "http://localhost:8080"
@@ -25,11 +26,35 @@ function CustomerLogin() {
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
   const [loading, setLoading] = useState(false);
+  const [googleLoading, setGoogleLoading] = useState(false);
+
+  const clearCustomerSession = () => {
+    sessionStorage.removeItem("customerToken");
+    sessionStorage.removeItem("customerLoggedIn");
+    sessionStorage.removeItem("customerName");
+    sessionStorage.removeItem("customerEmail");
+  };
+
+  const saveCustomerSession = (data) => {
+    if (!data.token) {
+      throw new Error(
+        "Login response did not contain a JWT token. Please check the backend."
+      );
+    }
+
+    sessionStorage.setItem("customerToken", data.token);
+    sessionStorage.setItem("customerLoggedIn", "true");
+    sessionStorage.setItem("customerName", data.name || "");
+    sessionStorage.setItem(
+      "customerEmail",
+      data.email || email.trim()
+    );
+  };
 
   const handleSubmit = async (event) => {
     event.preventDefault();
 
-    if (loading || success) return;
+    if (loading || googleLoading || success) return;
 
     setError("");
     setSuccess("");
@@ -42,10 +67,7 @@ function CustomerLogin() {
     try {
       setLoading(true);
 
-      sessionStorage.removeItem("customerToken");
-      sessionStorage.removeItem("customerLoggedIn");
-      sessionStorage.removeItem("customerName");
-      sessionStorage.removeItem("customerEmail");
+      clearCustomerSession();
 
       const response = await fetch(`${API_URL}/api/customers/login`, {
         method: "POST",
@@ -60,12 +82,15 @@ function CustomerLogin() {
       });
 
       const responseText = await response.text();
+
       let data = {};
 
       try {
         data = responseText ? JSON.parse(responseText) : {};
       } catch {
-        data = { detail: responseText };
+        data = {
+          detail: responseText,
+        };
       }
 
       if (!response.ok) {
@@ -76,25 +101,15 @@ function CustomerLogin() {
         );
       }
 
-      if (!data.token) {
-        throw new Error(
-          "Login response did not contain a JWT token. Please check the backend."
-        );
-      }
-
-      sessionStorage.setItem("customerToken", data.token);
-      sessionStorage.setItem("customerLoggedIn", "true");
-      sessionStorage.setItem("customerName", data.name || "");
-      sessionStorage.setItem(
-        "customerEmail",
-        data.email || email.trim()
-      );
+      saveCustomerSession(data);
 
       setSuccess(
         `Login successful! Welcome, ${data.name || "Customer"}!`
       );
 
-      navigate(redirectTo, { replace: true });
+      navigate(redirectTo, {
+        replace: true,
+      });
     } catch (err) {
       console.error("Customer login error:", err);
 
@@ -104,12 +119,110 @@ function CustomerLogin() {
         );
       } else {
         setError(
-          err.message || "Something went wrong. Please try again."
+          err.message ||
+            "Something went wrong. Please try again."
         );
       }
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleGoogleSuccess = async (credentialResponse) => {
+    if (loading || googleLoading || success) return;
+
+    setError("");
+    setSuccess("");
+
+    const googleIdToken =
+      credentialResponse?.credential;
+
+    if (!googleIdToken) {
+      setError(
+        "Google login did not return an ID token. Please try again."
+      );
+      return;
+    }
+
+    try {
+      setGoogleLoading(true);
+
+      clearCustomerSession();
+
+      const response = await fetch(
+        `${API_URL}/api/customers/google-login`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Accept: "application/json",
+          },
+          body: JSON.stringify({
+            googleIdToken,
+          }),
+        }
+      );
+
+      const responseText = await response.text();
+
+      let data = {};
+
+      try {
+        data = responseText
+          ? JSON.parse(responseText)
+          : {};
+      } catch {
+        data = {
+          detail: responseText,
+        };
+      }
+
+      if (!response.ok) {
+        throw new Error(
+          data.detail ||
+            data.message ||
+            "Google login failed. Please try again."
+        );
+      }
+
+      saveCustomerSession(data);
+
+      setSuccess(
+        `Google login successful! Welcome, ${
+          data.name || "Customer"
+        }!`
+      );
+
+      navigate(redirectTo, {
+        replace: true,
+      });
+    } catch (err) {
+      console.error(
+        "Customer Google login error:",
+        err
+      );
+
+      if (err instanceof TypeError) {
+        setError(
+          "Cannot connect to the backend. Please check your connection and backend server."
+        );
+      } else {
+        setError(
+          err.message ||
+            "Google login failed. Please try again."
+        );
+      }
+    } finally {
+      setGoogleLoading(false);
+    }
+  };
+
+  const handleGoogleError = () => {
+    console.error("Google Sign-In failed.");
+
+    setError(
+      "Google login was cancelled or failed. Please try again."
+    );
   };
 
   const inputStyle = {
@@ -118,6 +231,9 @@ function CustomerLogin() {
     fontSize: "13px",
     borderColor: "#e3d9f5",
   };
+
+  const loginDisabled =
+    loading || googleLoading || Boolean(success);
 
   return (
     <div
@@ -143,6 +259,17 @@ function CustomerLogin() {
         .customer-login-responsive input {
           max-width: 100%;
           min-width: 0;
+        }
+
+        .google-login-wrapper {
+          width: 100%;
+          display: flex;
+          justify-content: center;
+          min-height: 40px;
+        }
+
+        .google-login-wrapper > div {
+          max-width: 100%;
         }
 
         @media (max-width: 767.98px) {
@@ -241,23 +368,32 @@ function CustomerLogin() {
         >
           <div>
             <h3 className="fw-bold mb-1">
-              ♨ Food <span style={{ color: "#d79bff" }}>Xpress</span>
+              ♨ Food{" "}
+              <span style={{ color: "#d79bff" }}>
+                Xpress
+              </span>
             </h3>
 
-            <p className="small mb-4" style={{ color: "#e4ccff" }}>
+            <p
+              className="small mb-4"
+              style={{ color: "#e4ccff" }}
+            >
               Good Food&nbsp; • &nbsp;Happy Mood
             </p>
 
             <h2
               className="fw-bold mb-3"
-              style={{ fontSize: "26px", lineHeight: 1.2 }}
+              style={{
+                fontSize: "26px",
+                lineHeight: 1.2,
+              }}
             >
               Better Food, Bigger Smiles!
             </h2>
 
             <p className="small mb-0">
-              Sign in and enjoy your favourite meals delivered fresh
-              to your doorstep.
+              Sign in and enjoy your favourite meals
+              delivered fresh to your doorstep.
             </p>
           </div>
 
@@ -277,7 +413,8 @@ function CustomerLogin() {
                 width: "77%",
                 height: "175px",
                 objectFit: "cover",
-                border: "3px solid rgba(255,255,255,0.4)",
+                border:
+                  "3px solid rgba(255,255,255,0.4)",
               }}
             />
 
@@ -292,7 +429,8 @@ function CustomerLogin() {
                 width: "58%",
                 height: "125px",
                 objectFit: "cover",
-                border: "3px solid rgba(255,255,255,0.4)",
+                border:
+                  "3px solid rgba(255,255,255,0.4)",
               }}
             />
 
@@ -322,16 +460,25 @@ function CustomerLogin() {
           className="col-md-7 d-flex align-items-center justify-content-center p-0"
           style={{ background: "#ffffff" }}
         >
-          <div className="w-100 p-3 p-lg-4" style={{ maxWidth: "420px" }}>
+          <div
+            className="w-100 p-3 p-lg-4"
+            style={{ maxWidth: "420px" }}
+          >
             <div className="text-center mb-4">
               <h2
                 className="fw-bold mb-2"
-                style={{ color: "#7028bc", fontSize: "26px" }}
+                style={{
+                  color: "#7028bc",
+                  fontSize: "26px",
+                }}
               >
                 ♨ Food Xpress
               </h2>
 
-              <h4 className="fw-bold mb-1" style={{ fontSize: "20px" }}>
+              <h4
+                className="fw-bold mb-1"
+                style={{ fontSize: "20px" }}
+              >
                 Welcome Back!
               </h4>
 
@@ -341,18 +488,28 @@ function CustomerLogin() {
             </div>
 
             {error && (
-              <div className="alert alert-danger py-2 small" role="alert">
+              <div
+                className="alert alert-danger py-2 small"
+                role="alert"
+              >
                 {error}
               </div>
             )}
 
             {success && (
-              <div className="alert alert-success py-2 small" role="status">
+              <div
+                className="alert alert-success py-2 small"
+                role="status"
+              >
                 <strong>✓ {success}</strong>
-                <div className="mt-1">Redirecting you to continue...</div>
+
+                <div className="mt-1">
+                  Redirecting you to continue...
+                </div>
               </div>
             )}
 
+            {/* EMAIL / PASSWORD LOGIN */}
             <form onSubmit={handleSubmit}>
               <div className="mb-3">
                 <label
@@ -369,10 +526,12 @@ function CustomerLogin() {
                   style={inputStyle}
                   placeholder="Enter your email"
                   value={email}
-                  onChange={(event) => setEmail(event.target.value)}
+                  onChange={(event) =>
+                    setEmail(event.target.value)
+                  }
                   autoComplete="email"
                   required
-                  disabled={loading || Boolean(success)}
+                  disabled={loginDisabled}
                 />
               </div>
 
@@ -391,10 +550,12 @@ function CustomerLogin() {
                   style={inputStyle}
                   placeholder="Enter your password"
                   value={password}
-                  onChange={(event) => setPassword(event.target.value)}
+                  onChange={(event) =>
+                    setPassword(event.target.value)
+                  }
                   autoComplete="current-password"
                   required
-                  disabled={loading || Boolean(success)}
+                  disabled={loginDisabled}
                 />
               </div>
 
@@ -411,10 +572,11 @@ function CustomerLogin() {
 
               <button
                 type="submit"
-                disabled={loading || Boolean(success)}
+                disabled={loginDisabled}
                 className="btn w-100 text-white fw-bold py-2"
                 style={{
-                  background: "linear-gradient(90deg, #912cf0, #7028bc)",
+                  background:
+                    "linear-gradient(90deg, #912cf0, #7028bc)",
                   border: "none",
                   borderRadius: "9px",
                 }}
@@ -427,13 +589,52 @@ function CustomerLogin() {
               </button>
             </form>
 
+            {/* GOOGLE LOGIN */}
             <div className="d-flex align-items-center gap-3 my-3">
               <hr className="flex-grow-1" />
-              <span className="text-secondary small">OR</span>
+
+              <span className="text-secondary small">
+                OR
+              </span>
+
               <hr className="flex-grow-1" />
             </div>
 
-            <p className="text-center text-secondary small mb-0">
+            <div className="google-login-wrapper">
+              {googleLoading ? (
+                <button
+                  type="button"
+                  className="btn w-100 fw-semibold"
+                  disabled
+                  style={{
+                    border: "1px solid #dadce0",
+                    borderRadius: "9px",
+                    minHeight: "40px",
+                    background: "#ffffff",
+                    color: "#555",
+                  }}
+                >
+                  Signing in with Google...
+                </button>
+              ) : (
+                <GoogleLogin
+                  onSuccess={handleGoogleSuccess}
+                  onError={handleGoogleError}
+                  useOneTap={false}
+                  theme="outline"
+                  size="large"
+                  text="continue_with"
+                  shape="rectangular"
+                  width="380"
+                />
+              )}
+            </div>
+
+            <p className="text-center text-secondary small mt-2 mb-0">
+              Sign in securely with your Google account.
+            </p>
+
+            <p className="text-center text-secondary small mb-0 mt-3">
               New to Food Xpress?{" "}
               <Link
                 to="/customer/register"

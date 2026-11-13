@@ -1,4 +1,3 @@
-
 package com.example.FoodXpress_backend.controller;
 
 import com.example.FoodXpress_backend.dto.FoodItemResponse;
@@ -26,11 +25,12 @@ public class FoodItemController {
         this.foodItemService = foodItemService;
     }
 
-    // Get a restaurant's menu
     @GetMapping
     public List<FoodItemResponse> getRestaurantMenu(
             @PathVariable Long restaurantId) {
 
-        return foodItemService.getMenuByRestaurant(restaurantId);
+        return foodItemService.getMenuByRestaurant(
+                restaurantId
+        );
     }
 }

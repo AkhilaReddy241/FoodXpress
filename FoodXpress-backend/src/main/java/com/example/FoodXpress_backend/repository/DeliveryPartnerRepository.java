@@ -1,9 +1,9 @@
 package com.example.FoodXpress_backend.repository;
 
 import com.example.FoodXpress_backend.entity.DeliveryPartner;
-
 import org.springframework.data.jpa.repository.JpaRepository;
 
+import java.util.List;
 import java.util.Optional;
 
 public interface DeliveryPartnerRepository
@@ -14,4 +14,8 @@ public interface DeliveryPartnerRepository
     boolean existsByEmailIgnoreCase(String email);
 
     boolean existsByLicenseNumberIgnoreCase(String licenseNumber);
+
+    List<DeliveryPartner> findByApprovalStatusIgnoreCaseOrderByIdDesc(
+            String approvalStatus
+    );
 }

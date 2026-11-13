@@ -223,9 +223,9 @@ function FoodXpressHome() {
 
         .fx-portals {
           display: grid;
-          grid-template-columns: repeat(2, minmax(0, 1fr));
+          grid-template-columns: repeat(3, minmax(0, 1fr));
           gap: 24px;
-          max-width: 1050px;
+          max-width: 1150px;
           margin: 0 auto;
         }
 
@@ -235,6 +235,12 @@ function FoodXpressHome() {
           border-radius: 17px;
           background: #ffffff;
           box-shadow: 0 9px 28px rgba(47, 16, 83, 0.045);
+          transition: 0.2s ease;
+        }
+
+        .fx-portal-card:hover {
+          transform: translateY(-4px);
+          box-shadow: 0 14px 35px rgba(47, 16, 83, 0.08);
         }
 
         .fx-portal-icon {
@@ -255,7 +261,7 @@ function FoodXpressHome() {
         }
 
         .fx-portal-card p {
-          min-height: 55px;
+          min-height: 78px;
           margin: 0 0 22px;
           color: #756b81;
           font-size: 14px;
@@ -328,6 +334,19 @@ function FoodXpressHome() {
           gap: 22px;
         }
 
+        @media (max-width: 1000px) {
+          .fx-portals {
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+          }
+
+          .fx-portal-card:last-child {
+            grid-column: 1 / -1;
+            max-width: 550px;
+            width: 100%;
+            margin: 0 auto;
+          }
+        }
+
         @media (max-width: 760px) {
           .fx-navbar {
             padding: 14px 5%;
@@ -338,6 +357,11 @@ function FoodXpressHome() {
             width: 100%;
             justify-content: space-between;
             gap: 12px;
+            flex-wrap: wrap;
+          }
+
+          .fx-nav-links a {
+            font-size: 12px;
           }
 
           .fx-hero {
@@ -375,6 +399,11 @@ function FoodXpressHome() {
             grid-template-columns: 1fr;
           }
 
+          .fx-portal-card:last-child {
+            grid-column: auto;
+            max-width: none;
+          }
+
           .fx-partner-section {
             margin-left: 5%;
             margin-right: 5%;
@@ -399,27 +428,61 @@ function FoodXpressHome() {
           }
 
           .fx-nav-links a {
+            font-size: 11px;
+          }
+
+          .fx-nav-login {
+            padding: 9px 12px;
+          }
+
+          .fx-hero {
+            padding: 45px 5%;
+          }
+
+          .fx-hero h1 {
+            font-size: clamp(34px, 10vw, 38px);
+            letter-spacing: -1.2px;
+          }
+
+          .fx-hero p {
+            font-size: 15px;
+          }
+
+          .fx-food-circle {
+            width: 190px;
+            height: 190px;
+            font-size: 82px;
+          }
+
+          .fx-food-note {
+            right: 0;
+            bottom: 0;
+            padding: 12px 14px;
             font-size: 12px;
           }
 
-          .fx-section {
-            padding: 55px 5%;
+          .fx-partner-section {
+            padding: 26px 18px;
           }
 
-          .fx-section-heading h2 {
-            font-size: 28px;
+          .fx-partner-section h2 {
+            font-size: 23px;
           }
 
-          .fx-portal-card {
-            padding: 23px;
+          .fx-partner-section .fx-button {
+            width: 100%;
+          }
+
+          .fx-footer {
+            align-items: flex-start;
           }
 
           .fx-footer-links {
-            gap: 14px;
+            flex-wrap: wrap;
+            gap: 10px 14px;
           }
         }
 
-        /* Additional responsiveness for narrow mobile screens */
         @media (max-width: 360px) {
           .fx-navbar {
             padding: 12px 4%;
@@ -496,15 +559,27 @@ function FoodXpressHome() {
       <header className="fx-navbar">
         <Link to="/" className="fx-logo">
           <span className="navbar-brand fw-bold">
-          ♨️ Food Xpress
-        </span>
-
+            ♨️ Food Xpress
+          </span>
         </Link>
 
         <nav className="fx-nav-links">
-          <Link to="/customer/home">Customers</Link>
-          <Link to="/restaurant/register">Restaurant Partners</Link>
-          <Link to="/admin/login" className="fx-nav-login">
+          <Link to="/customer/home">
+            Customers
+          </Link>
+
+          <Link to="/restaurant/register">
+            Restaurant Partners
+          </Link>
+
+          <Link to="/delivery/login">
+            Delivery Partners
+          </Link>
+
+          <Link
+            to="/admin/login"
+            className="fx-nav-login"
+          >
             Admin Login
           </Link>
         </nav>
@@ -522,7 +597,9 @@ function FoodXpressHome() {
             <br />
             Great Moments.
             <br />
-            <span className="fx-highlight">Delivered.</span>
+            <span className="fx-highlight">
+              Delivered.
+            </span>
           </h1>
 
           <p>
@@ -548,7 +625,10 @@ function FoodXpressHome() {
         </div>
 
         <div className="fx-hero-art">
-          <div className="fx-food-circle">🍱</div>
+          <div className="fx-food-circle">
+            🍱
+          </div>
+
           <div className="fx-food-note">
             Fresh food, happy moments!
           </div>
@@ -558,18 +638,27 @@ function FoodXpressHome() {
       {/* Portal section */}
       <section className="fx-section">
         <div className="fx-section-heading">
-          <h2>Welcome to Food Xpress</h2>
+          <h2>
+            Welcome to Food Xpress
+          </h2>
+
           <p>
             One platform connecting customers, restaurant partners,
-            and administrators.
+            delivery partners, and administrators.
           </p>
         </div>
 
         <div className="fx-portals">
-          <div className="fx-portal-card">
-            <div className="fx-portal-icon">🍽️</div>
 
-            <h3>For Customers</h3>
+          {/* Customer Portal */}
+          <div className="fx-portal-card">
+            <div className="fx-portal-icon">
+              🍽️
+            </div>
+
+            <h3>
+              For Customers
+            </h3>
 
             <p>
               Explore restaurants, browse menus, order your favorite
@@ -584,10 +673,15 @@ function FoodXpressHome() {
             </Link>
           </div>
 
+          {/* Restaurant Portal */}
           <div className="fx-portal-card">
-            <div className="fx-portal-icon">🏪</div>
+            <div className="fx-portal-icon">
+              🏪
+            </div>
 
-            <h3>For Restaurant Owners</h3>
+            <h3>
+              For Restaurant Owners
+            </h3>
 
             <p>
               Join Food Xpress, register your restaurant, manage
@@ -610,13 +704,49 @@ function FoodXpressHome() {
               </Link>
             </div>
           </div>
+
+          {/* Delivery Partner Portal */}
+          <div className="fx-portal-card">
+            <div className="fx-portal-icon">
+              🛵
+            </div>
+
+            <h3>
+              For Delivery Partners
+            </h3>
+
+            <p>
+              Join Food Xpress as an independent delivery partner,
+              accept delivery orders, manage your deliveries, and
+              track your earnings.
+            </p>
+
+            <Link
+              to="/delivery/register"
+              className="fx-text-link"
+            >
+              Become a Delivery Partner →
+            </Link>
+
+            <div style={{ marginTop: "13px" }}>
+              <Link
+                to="/delivery/login"
+                className="fx-text-link"
+              >
+                Already a Partner? Login
+              </Link>
+            </div>
+          </div>
+
         </div>
       </section>
 
       {/* Restaurant partner section */}
       <section className="fx-partner-section">
         <div>
-          <h2>Grow Your Restaurant With Food Xpress</h2>
+          <h2>
+            Grow Your Restaurant With Food Xpress
+          </h2>
 
           <p>
             Become a Food Xpress restaurant partner and manage your
@@ -632,6 +762,33 @@ function FoodXpressHome() {
         </Link>
       </section>
 
+      {/* Delivery Partner section */}
+      <section
+        className="fx-partner-section"
+        style={{
+          marginTop: "-45px",
+        }}
+      >
+        <div>
+          <h2>
+            Deliver With Food Xpress
+          </h2>
+
+          <p>
+            Become an independent Food Xpress delivery partner,
+            accept delivery orders, manage your deliveries, and
+            track your earnings.
+          </p>
+        </div>
+
+        <Link
+          to="/delivery/register"
+          className="fx-button"
+        >
+          Join as Delivery Partner
+        </Link>
+      </section>
+
       {/* Footer */}
       <footer className="fx-footer">
         <span>
@@ -639,9 +796,21 @@ function FoodXpressHome() {
         </span>
 
         <div className="fx-footer-links">
-          <Link to="/customer/help">Help</Link>
-          <Link to="/restaurant/login">Restaurant Login</Link>
-          <Link to="/admin/login">Admin</Link>
+          <Link to="/customer/help">
+            Help
+          </Link>
+
+          <Link to="/restaurant/login">
+            Restaurant Login
+          </Link>
+
+          <Link to="/delivery/login">
+            Delivery Partner Login
+          </Link>
+
+          <Link to="/admin/login">
+            Admin
+          </Link>
         </div>
       </footer>
     </div>

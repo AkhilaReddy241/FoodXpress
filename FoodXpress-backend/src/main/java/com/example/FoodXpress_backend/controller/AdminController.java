@@ -1,4 +1,3 @@
-
 package com.example.FoodXpress_backend.controller;
 
 import java.util.List;
@@ -53,13 +52,18 @@ public class AdminController {
             @RequestBody AdminLoginRequest request) {
 
         try {
-            AdminAuthResponse response = adminService.login(request);
+            AdminAuthResponse response =
+                    adminService.login(request);
+
             return ResponseEntity.ok(response);
 
         } catch (IllegalArgumentException exception) {
             return ResponseEntity
                     .status(HttpStatus.UNAUTHORIZED)
-                    .body(Map.of("message", safeMessage(exception)));
+                    .body(Map.of(
+                            "message",
+                            safeMessage(exception)
+                    ));
         }
     }
 
@@ -72,7 +76,8 @@ public class AdminController {
             @Valid @RequestBody ForgotPasswordRequest request) {
 
         return ResponseEntity.ok(
-                adminPasswordResetService.sendOtp(request.email()));
+                adminPasswordResetService.sendOtp(
+                        request.email()));
     }
 
     // =========================
@@ -109,35 +114,68 @@ public class AdminController {
     // =========================
 
     @GetMapping("/restaurants")
-    public ResponseEntity<List<AdminRestaurantResponse>> getAllRestaurants() {
+    public ResponseEntity<List<AdminRestaurantResponse>>
+            getAllRestaurants() {
 
         return ResponseEntity.ok(
                 adminService.getAllRestaurants());
     }
 
+    // =========================
+    // GET SINGLE RESTAURANT
+    // =========================
+    //
+    // Used by the Admin "View" button.
+    // This fetches the latest data directly
+    // from the database.
+    // =========================
+
+    @GetMapping("/restaurants/{id}")
+    public ResponseEntity<?> getRestaurantDetails(
+            @PathVariable Long id) {
+
+        try {
+            return ResponseEntity.ok(
+                    adminService.getRestaurantDetails(id));
+
+        } catch (IllegalArgumentException exception) {
+
+            return ResponseEntity
+                    .status(HttpStatus.NOT_FOUND)
+                    .body(Map.of(
+                            "message",
+                            safeMessage(exception)
+                    ));
+        }
+    }
+
     @PatchMapping("/restaurants/{id}/approve")
-    public ResponseEntity<?> approveRestaurant(@PathVariable Long id) {
+    public ResponseEntity<?> approveRestaurant(
+            @PathVariable Long id) {
 
         return performAction(
                 () -> adminService.approveRestaurant(id));
     }
 
     @PatchMapping("/restaurants/{id}/reject")
-    public ResponseEntity<?> rejectRestaurant(@PathVariable Long id) {
+    public ResponseEntity<?> rejectRestaurant(
+            @PathVariable Long id) {
 
         return performAction(
                 () -> adminService.rejectRestaurant(id));
     }
 
     @PatchMapping("/restaurants/{id}/activate")
-    public ResponseEntity<?> activateRestaurant(@PathVariable Long id) {
+    public ResponseEntity<?> activateRestaurant(
+            @PathVariable Long id) {
 
         return performAction(
                 () -> adminService.activateRestaurant(id));
     }
 
     @PatchMapping("/restaurants/{id}/deactivate")
-    public ResponseEntity<?> deactivateRestaurant(@PathVariable Long id) {
+    public ResponseEntity<?> deactivateRestaurant(
+            @PathVariable Long id) {
 
         return performAction(
                 () -> adminService.deactivateRestaurant(id));
@@ -148,15 +186,18 @@ public class AdminController {
     // =========================
 
     @GetMapping("/customers")
-    public ResponseEntity<List<AdminCustomerResponse>> getAllCustomers() {
+    public ResponseEntity<List<AdminCustomerResponse>>
+            getAllCustomers() {
 
         return ResponseEntity.ok(
                 adminService.getAllCustomers());
     }
 
     @GetMapping("/customers/search")
-    public ResponseEntity<List<AdminCustomerResponse>> searchCustomers(
-            @RequestParam(required = false) String query) {
+    public ResponseEntity<List<AdminCustomerResponse>>
+            searchCustomers(
+                    @RequestParam(required = false)
+                    String query) {
 
         return ResponseEntity.ok(
                 adminService.searchCustomers(query));
@@ -171,14 +212,16 @@ public class AdminController {
     }
 
     @PatchMapping("/customers/{id}/block")
-    public ResponseEntity<?> blockCustomer(@PathVariable Long id) {
+    public ResponseEntity<?> blockCustomer(
+            @PathVariable Long id) {
 
         return performAction(
                 () -> adminService.blockCustomer(id));
     }
 
     @PatchMapping("/customers/{id}/activate")
-    public ResponseEntity<?> activateCustomer(@PathVariable Long id) {
+    public ResponseEntity<?> activateCustomer(
+            @PathVariable Long id) {
 
         return performAction(
                 () -> adminService.activateCustomer(id));
@@ -189,7 +232,8 @@ public class AdminController {
     // =========================
 
     @GetMapping("/orders")
-    public ResponseEntity<List<AdminOrderResponse>> getAllOrders() {
+    public ResponseEntity<List<AdminOrderResponse>>
+            getAllOrders() {
 
         return ResponseEntity.ok(
                 adminService.getAllOrders());
@@ -204,6 +248,7 @@ public class AdminController {
                     adminService.getOrderDetails(id));
 
         } catch (IllegalArgumentException exception) {
+
             return ResponseEntity
                     .status(HttpStatus.NOT_FOUND)
                     .body(Map.of(
@@ -218,7 +263,8 @@ public class AdminController {
     // =========================
 
     @GetMapping("/food-categories")
-    public ResponseEntity<List<FoodCategoryResponse>> getAllFoodCategories() {
+    public ResponseEntity<List<FoodCategoryResponse>>
+            getAllFoodCategories() {
 
         return ResponseEntity.ok(
                 foodCategoryService.getAllCategories());
@@ -231,7 +277,9 @@ public class AdminController {
         try {
             FoodCategoryResponse response =
                     foodCategoryService.addCategory(
-                            request == null ? null : request.name()
+                            request == null
+                                    ? null
+                                    : request.name()
                     );
 
             return ResponseEntity
@@ -239,9 +287,13 @@ public class AdminController {
                     .body(response);
 
         } catch (IllegalArgumentException exception) {
+
             return ResponseEntity
                     .badRequest()
-                    .body(Map.of("message", safeMessage(exception)));
+                    .body(Map.of(
+                            "message",
+                            safeMessage(exception)
+                    ));
         }
     }
 
@@ -253,7 +305,9 @@ public class AdminController {
         return performAction(
                 () -> foodCategoryService.updateCategory(
                         id,
-                        request == null ? null : request.name()
+                        request == null
+                                ? null
+                                : request.name()
                 )
         );
     }
@@ -266,13 +320,20 @@ public class AdminController {
             foodCategoryService.deleteCategory(id);
 
             return ResponseEntity.ok(
-                    Map.of("message", "Food category deleted successfully.")
+                    Map.of(
+                            "message",
+                            "Food category deleted successfully."
+                    )
             );
 
         } catch (IllegalArgumentException exception) {
+
             return ResponseEntity
                     .badRequest()
-                    .body(Map.of("message", safeMessage(exception)));
+                    .body(Map.of(
+                            "message",
+                            safeMessage(exception)
+                    ));
         }
     }
 
@@ -284,9 +345,11 @@ public class AdminController {
             Supplier<?> action) {
 
         try {
-            return ResponseEntity.ok(action.get());
+            return ResponseEntity.ok(
+                    action.get());
 
         } catch (IllegalArgumentException exception) {
+
             return ResponseEntity
                     .badRequest()
                     .body(Map.of(
@@ -300,7 +363,8 @@ public class AdminController {
     // SAFE ERROR MESSAGE
     // =========================
 
-    private String safeMessage(IllegalArgumentException exception) {
+    private String safeMessage(
+            IllegalArgumentException exception) {
 
         String message = exception.getMessage();
 

@@ -5,6 +5,7 @@ import com.example.FoodXpress_backend.repository.DeliveryPartnerRepository;
 import com.example.FoodXpress_backend.service.JwtService;
 
 import jakarta.servlet.DispatcherType;
+
 import java.util.List;
 
 import org.springframework.boot.web.servlet.FilterRegistrationBean;
@@ -38,7 +39,8 @@ public class SecurityConfig {
 
     @Bean
     public FilterRegistrationBean<JwtAuthenticationFilter>
-            jwtFilterServletRegistration(JwtAuthenticationFilter filter) {
+            jwtFilterServletRegistration(
+                    JwtAuthenticationFilter filter) {
 
         FilterRegistrationBean<JwtAuthenticationFilter> registration =
                 new FilterRegistrationBean<>();
@@ -52,7 +54,8 @@ public class SecurityConfig {
     @Bean
     public CorsConfigurationSource corsConfigurationSource() {
 
-        CorsConfiguration configuration = new CorsConfiguration();
+        CorsConfiguration configuration =
+                new CorsConfiguration();
 
         configuration.setAllowedOrigins(List.of(
                 "http://localhost:5173",
@@ -82,7 +85,10 @@ public class SecurityConfig {
         UrlBasedCorsConfigurationSource source =
                 new UrlBasedCorsConfigurationSource();
 
-        source.registerCorsConfiguration("/**", configuration);
+        source.registerCorsConfiguration(
+                "/**",
+                configuration
+        );
 
         return source;
     }
@@ -95,19 +101,37 @@ public class SecurityConfig {
 
         http
             .cors(Customizer.withDefaults())
+
             .csrf(csrf -> csrf.disable())
+
             .formLogin(form -> form.disable())
+
             .httpBasic(basic -> basic.disable())
+
             .sessionManagement(session ->
                     session.sessionCreationPolicy(
-                            SessionCreationPolicy.STATELESS))
+                            SessionCreationPolicy.STATELESS
+                    )
+            )
+
             .authorizeHttpRequests(auth -> auth
 
-                .dispatcherTypeMatchers(DispatcherType.ERROR).permitAll()
+                // Allow Spring error dispatches
+                .dispatcherTypeMatchers(
+                        DispatcherType.ERROR
+                ).permitAll()
 
-                .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
+                // Allow CORS preflight requests
+                .requestMatchers(
+                        HttpMethod.OPTIONS,
+                        "/**"
+                ).permitAll()
 
-                .requestMatchers(HttpMethod.GET, "/uploads/**").permitAll()
+                // Uploaded images
+                .requestMatchers(
+                        HttpMethod.GET,
+                        "/uploads/**"
+                ).permitAll()
 
                 // Customer public endpoints
                 .requestMatchers(
@@ -116,6 +140,11 @@ public class SecurityConfig {
                         "/api/customers/register/",
                         "/api/customers/login",
                         "/api/customers/login/",
+
+                        // Google Customer Login
+                        "/api/customers/google-login",
+                        "/api/customers/google-login/",
+
                         "/api/customers/forgot-password",
                         "/api/customers/forgot-password/",
                         "/api/customers/verify-reset-otp",
@@ -153,9 +182,11 @@ public class SecurityConfig {
                 ).permitAll()
 
                 // All other Admin endpoints require ADMIN role
-                .requestMatchers("/api/admin/**").hasRole("ADMIN")
+                .requestMatchers(
+                        "/api/admin/**"
+                ).hasRole("ADMIN")
 
-                // Delivery Partner public registration and login
+                // Delivery partner public registration and login
                 .requestMatchers(
                         HttpMethod.POST,
                         "/api/delivery-partners/register",
@@ -164,13 +195,13 @@ public class SecurityConfig {
                         "/api/delivery-partners/login/"
                 ).permitAll()
 
-                // All other Delivery Partner endpoints require DELIVERY_PARTNER role
+                // All other delivery partner endpoints
                 .requestMatchers(
                         "/api/delivery-partners",
                         "/api/delivery-partners/**"
                 ).hasRole("DELIVERY_PARTNER")
 
-                // Public restaurant and cuisine endpoints
+                // Public restaurant and cuisine GET endpoints
                 .requestMatchers(
                         HttpMethod.GET,
                         "/api/restaurants",
@@ -180,19 +211,40 @@ public class SecurityConfig {
                 ).permitAll()
 
                 // Restaurant owner food management
-.requestMatchers(
-        "/api/restaurant-owner/food-items",
-        "/api/restaurant-owner/food-items/**"
-).hasRole("RESTAURANT_OWNER")
+                .requestMatchers(
+                        "/api/restaurant-owner/food-items",
+                        "/api/restaurant-owner/food-items/**"
+                ).hasRole("RESTAURANT_OWNER")
 
-// Food Xpress AI chatbot public endpoint
-.requestMatchers(
-        HttpMethod.POST,
-        "/api/chatbot/message"
-).permitAll()
+                // Food Xpress AI chatbot endpoint
+                .requestMatchers(
+                        HttpMethod.POST,
+                        "/api/chatbot/message"
+                ).permitAll()
 
-.anyRequest().authenticated()
+                // Customer chatbot food search
+                .requestMatchers(
+                        HttpMethod.GET,
+                        "/api/food-items/search",
+                        "/api/food-items/search/"
+                ).authenticated()
+
+                /*
+                 * WebSocket STOMP endpoint.
+                 *
+                 * The initial HTTP handshake is allowed here.
+                 * JWT authentication is performed separately by
+                 * WebSocketJwtInterceptor during the STOMP CONNECT.
+                 */
+                .requestMatchers(
+                        "/ws",
+                        "/ws/**"
+                ).permitAll()
+
+                // Every other endpoint requires authentication
+                .anyRequest().authenticated()
             )
+
             .addFilterBefore(
                     jwtAuthenticationFilter,
                     UsernamePasswordAuthenticationFilter.class
