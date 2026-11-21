@@ -10,17 +10,6 @@ const DARK = "#351078";
 
 const EMPTY_CART = { items: [], totalQuantity: 0, totalAmount: 0 };
 
-const EMPTY_ADDRESS = {
-  label: "Home",
-  recipientName: "",
-  phone: "",
-  addressLine: "",
-  city: "",
-  state: "",
-  pincode: "",
-  defaultAddress: false,
-};
-
 const formatPrice = (amount) =>
   Number(amount || 0).toLocaleString("en-IN", {
     style: "currency",
@@ -114,20 +103,21 @@ function CustomerCart() {
   const [paymentMethod, setPaymentMethod] = useState("RAZORPAY");
   const [placedOrderId, setPlacedOrderId] = useState(null);
 
-  // Delivery address state
+  // =====================================
+  // SAVED DELIVERY ADDRESS STATE
+  // =====================================
+
   const [addresses, setAddresses] = useState([]);
   const [selectedAddressId, setSelectedAddressId] = useState("");
   const [loadingAddresses, setLoadingAddresses] = useState(true);
-  const [showAddressForm, setShowAddressForm] = useState(false);
-  const [savingAddress, setSavingAddress] = useState(false);
   const [addressError, setAddressError] = useState("");
   const [addressMessage, setAddressMessage] = useState("");
-  const [newAddress, setNewAddress] = useState(EMPTY_ADDRESS);
 
   const customerName =
     sessionStorage.getItem("customerName") || "Food Lover";
 
-  const customerEmail = sessionStorage.getItem("customerEmail") || "";
+  const customerEmail =
+    sessionStorage.getItem("customerEmail") || "";
 
   const getToken = () => sessionStorage.getItem("customerToken");
 
@@ -142,7 +132,9 @@ function CustomerCart() {
     return {
       Authorization: `Bearer ${token}`,
       Accept: "application/json",
-      ...(includeJson ? { "Content-Type": "application/json" } : {}),
+      ...(includeJson
+        ? { "Content-Type": "application/json" }
+        : {}),
     };
   };
 
@@ -238,13 +230,16 @@ function CustomerCart() {
     setLoadingCoupons(true);
 
     try {
-      const response = await fetch(`${API_URL}/api/cart/coupons`, {
-        method: "GET",
-        headers: {
-          Authorization: `Bearer ${token}`,
-          Accept: "application/json",
-        },
-      });
+      const response = await fetch(
+        `${API_URL}/api/cart/coupons`,
+        {
+          method: "GET",
+          headers: {
+            Authorization: `Bearer ${token}`,
+            Accept: "application/json",
+          },
+        }
+      );
 
       if (handleUnauthorized(response)) return;
 
@@ -252,7 +247,10 @@ function CustomerCart() {
 
       if (!response.ok) {
         throw new Error(
-          getErrorMessage(data, "Unable to load available coupons.")
+          getErrorMessage(
+            data,
+            "Unable to load available coupons."
+          )
         );
       }
 
@@ -270,7 +268,7 @@ function CustomerCart() {
   }, []);
 
   // =====================================
-  // LOAD ADDRESSES
+  // LOAD SAVED CUSTOMER ADDRESSES
   // =====================================
 
   const loadAddresses = useCallback(async () => {
@@ -286,12 +284,16 @@ function CustomerCart() {
     setAddressError("");
 
     try {
-      const response = await fetch(`${API_URL}/api/customers/addresses`, {
-        headers: {
-          Authorization: `Bearer ${token}`,
-          Accept: "application/json",
-        },
-      });
+      const response = await fetch(
+        `${API_URL}/api/customers/addresses`,
+        {
+          method: "GET",
+          headers: {
+            Authorization: `Bearer ${token}`,
+            Accept: "application/json",
+          },
+        }
+      );
 
       if (handleUnauthorized(response)) return;
 
@@ -299,7 +301,10 @@ function CustomerCart() {
 
       if (!response.ok) {
         throw new Error(
-          getErrorMessage(data, "Unable to load saved addresses.")
+          getErrorMessage(
+            data,
+            "Unable to load saved addresses."
+          )
         );
       }
 
@@ -311,11 +316,14 @@ function CustomerCart() {
 
       setAddresses(list);
 
+      // Automatically select default address.
+      // If there is no default address, select the first saved address.
       setSelectedAddressId((current) => {
         if (
           current &&
           list.some(
-            (address) => String(address.id) === String(current)
+            (address) =>
+              String(address.id) === String(current)
           )
         ) {
           return current;
@@ -325,7 +333,11 @@ function CustomerCart() {
           (address) => address.defaultAddress
         );
 
-        return String(defaultAddress?.id ?? list[0]?.id ?? "");
+        return String(
+          defaultAddress?.id ??
+            list[0]?.id ??
+            ""
+        );
       });
     } catch (err) {
       setAddressError(
@@ -340,7 +352,11 @@ function CustomerCart() {
     loadCart();
     loadAddresses();
     loadAvailableCoupons();
-  }, [loadCart, loadAddresses, loadAvailableCoupons]);
+  }, [
+    loadCart,
+    loadAddresses,
+    loadAvailableCoupons,
+  ]);
 
   // =====================================
   // UPDATE ITEM QUANTITY
@@ -350,6 +366,7 @@ function CustomerCart() {
     if (quantity < 1 || quantity > 99) return;
 
     const headers = getAuthHeaders(true);
+
     if (!headers) return;
 
     setBusyItem(item.cartItemId);
@@ -372,14 +389,23 @@ function CustomerCart() {
 
       if (!response.ok) {
         throw new Error(
-          getErrorMessage(data, "Unable to update quantity.")
+          getErrorMessage(
+            data,
+            "Unable to update quantity."
+          )
         );
       }
 
       setCart({
-        items: Array.isArray(data.items) ? data.items : [],
-        totalQuantity: Number(data.totalQuantity || 0),
-        totalAmount: Number(data.totalAmount || 0),
+        items: Array.isArray(data.items)
+          ? data.items
+          : [],
+        totalQuantity: Number(
+          data.totalQuantity || 0
+        ),
+        totalAmount: Number(
+          data.totalAmount || 0
+        ),
       });
 
       const hadCoupon = Boolean(appliedCoupon);
@@ -393,7 +419,10 @@ function CustomerCart() {
           : "Cart quantity updated."
       );
     } catch (err) {
-      setError(err.message || "Unable to update quantity.");
+      setError(
+        err.message ||
+          "Unable to update quantity."
+      );
     } finally {
       setBusyItem(null);
     }
@@ -405,6 +434,7 @@ function CustomerCart() {
 
   const removeItem = async (item) => {
     const headers = getAuthHeaders();
+
     if (!headers) return;
 
     setBusyItem(item.cartItemId);
@@ -426,22 +456,36 @@ function CustomerCart() {
 
       if (!response.ok) {
         throw new Error(
-          getErrorMessage(data, "Unable to remove item.")
+          getErrorMessage(
+            data,
+            "Unable to remove item."
+          )
         );
       }
 
       setCart({
-        items: Array.isArray(data.items) ? data.items : [],
-        totalQuantity: Number(data.totalQuantity || 0),
-        totalAmount: Number(data.totalAmount || 0),
+        items: Array.isArray(data.items)
+          ? data.items
+          : [],
+        totalQuantity: Number(
+          data.totalQuantity || 0
+        ),
+        totalAmount: Number(
+          data.totalAmount || 0
+        ),
       });
 
       clearCouponState();
       notifyCartUpdated();
 
-      setMessage("Item removed from your cart.");
+      setMessage(
+        "Item removed from your cart."
+      );
     } catch (err) {
-      setError(err.message || "Unable to remove item.");
+      setError(
+        err.message ||
+          "Unable to remove item."
+      );
     } finally {
       setBusyItem(null);
     }
@@ -454,12 +498,15 @@ function CustomerCart() {
   const clearCart = async () => {
     if (
       cart.items.length === 0 ||
-      !window.confirm("Are you sure you want to clear your cart?")
+      !window.confirm(
+        "Are you sure you want to clear your cart?"
+      )
     ) {
       return;
     }
 
     const headers = getAuthHeaders();
+
     if (!headers) return;
 
     setClearing(true);
@@ -467,10 +514,13 @@ function CustomerCart() {
     setMessage("");
 
     try {
-      const response = await fetch(`${API_URL}/api/cart`, {
-        method: "DELETE",
-        headers,
-      });
+      const response = await fetch(
+        `${API_URL}/api/cart`,
+        {
+          method: "DELETE",
+          headers,
+        }
+      );
 
       if (handleUnauthorized(response)) return;
 
@@ -478,22 +528,36 @@ function CustomerCart() {
 
       if (!response.ok) {
         throw new Error(
-          getErrorMessage(data, "Unable to clear your cart.")
+          getErrorMessage(
+            data,
+            "Unable to clear your cart."
+          )
         );
       }
 
       setCart({
-        items: Array.isArray(data.items) ? data.items : [],
-        totalQuantity: Number(data.totalQuantity || 0),
-        totalAmount: Number(data.totalAmount || 0),
+        items: Array.isArray(data.items)
+          ? data.items
+          : [],
+        totalQuantity: Number(
+          data.totalQuantity || 0
+        ),
+        totalAmount: Number(
+          data.totalAmount || 0
+        ),
       });
 
       clearCouponState();
       notifyCartUpdated();
 
-      setMessage("Your cart has been cleared.");
+      setMessage(
+        "Your cart has been cleared."
+      );
     } catch (err) {
-      setError(err.message || "Unable to clear your cart.");
+      setError(
+        err.message ||
+          "Unable to clear your cart."
+      );
     } finally {
       setClearing(false);
     }
@@ -511,7 +575,9 @@ function CustomerCart() {
     setCouponMessage("");
 
     if (!code) {
-      setCouponMessage("Please enter a coupon code.");
+      setCouponMessage(
+        "Please enter a coupon code."
+      );
       return;
     }
 
@@ -523,16 +589,20 @@ function CustomerCart() {
     }
 
     const headers = getAuthHeaders(true);
+
     if (!headers) return;
 
     setApplyingCoupon(true);
 
     try {
-      const response = await fetch(`${API_URL}/api/cart/coupon`, {
-        method: "POST",
-        headers,
-        body: JSON.stringify({ code }),
-      });
+      const response = await fetch(
+        `${API_URL}/api/cart/coupon`,
+        {
+          method: "POST",
+          headers,
+          body: JSON.stringify({ code }),
+        }
+      );
 
       if (handleUnauthorized(response)) return;
 
@@ -540,22 +610,30 @@ function CustomerCart() {
 
       if (!response.ok) {
         throw new Error(
-          getErrorMessage(data, "Unable to apply coupon.")
+          getErrorMessage(
+            data,
+            "Unable to apply coupon."
+          )
         );
       }
 
-      setAppliedCoupon(data.code || code);
+      setAppliedCoupon(
+        data.code || code
+      );
+
       setCouponDetails(data);
 
       setCouponMessage(
-        data.message || `${code} applied successfully!`
+        data.message ||
+          `${code} applied successfully!`
       );
     } catch (err) {
       setAppliedCoupon("");
       setCouponDetails(null);
 
       setCouponMessage(
-        err.message || "Unable to apply coupon."
+        err.message ||
+          "Unable to apply coupon."
       );
     } finally {
       setApplyingCoupon(false);
@@ -563,113 +641,13 @@ function CustomerCart() {
   };
 
   // =====================================
-  // ADDRESS FORM
+  // SELECTED SAVED ADDRESS
   // =====================================
 
-  const handleAddressInput = (event) => {
-    const { name, value, type, checked } = event.target;
-
-    setNewAddress((previous) => ({
-      ...previous,
-      [name]: type === "checkbox" ? checked : value,
-    }));
-  };
-
-  const saveNewAddress = async (event) => {
-    event.preventDefault();
-
-    const headers = getAuthHeaders(true);
-    if (!headers) return;
-
-    setSavingAddress(true);
-    setAddressError("");
-    setAddressMessage("");
-
-    try {
-      const response = await fetch(
-        `${API_URL}/api/customers/addresses`,
-        {
-          method: "POST",
-          headers,
-          body: JSON.stringify({
-            ...newAddress,
-            label: newAddress.label.trim(),
-            recipientName: newAddress.recipientName.trim(),
-            phone: newAddress.phone.trim(),
-            addressLine: newAddress.addressLine.trim(),
-            city: newAddress.city.trim(),
-            state: newAddress.state.trim(),
-            pincode: newAddress.pincode.trim(),
-            defaultAddress: Boolean(newAddress.defaultAddress),
-          }),
-        }
-      );
-
-      if (handleUnauthorized(response)) return;
-
-      const data = await parseResponse(response);
-
-      if (!response.ok) {
-        throw new Error(
-          getErrorMessage(data, "Unable to save this address.")
-        );
-      }
-
-      const refreshResponse = await fetch(
-        `${API_URL}/api/customers/addresses`,
-        {
-          headers: {
-            Authorization: `Bearer ${getToken()}`,
-            Accept: "application/json",
-          },
-        }
-      );
-
-      if (!refreshResponse.ok) {
-        throw new Error(
-          "Address may have been saved, but the address list could not refresh. Please refresh the page."
-        );
-      }
-
-      const refreshed = await parseResponse(refreshResponse);
-
-      const list = Array.isArray(refreshed)
-        ? refreshed
-        : Array.isArray(refreshed.addresses)
-        ? refreshed.addresses
-        : [];
-
-      setAddresses(list);
-
-      const returnedId = data.id ?? data.addressId;
-
-      const selected =
-        list.find(
-          (address) => String(address.id) === String(returnedId)
-        ) ||
-        list.find(
-          (address) =>
-            address.recipientName === newAddress.recipientName &&
-            address.addressLine === newAddress.addressLine &&
-            address.pincode === newAddress.pincode
-        ) ||
-        list.find((address) => address.defaultAddress) ||
-        list[list.length - 1];
-
-      setSelectedAddressId(String(selected?.id ?? ""));
-      setNewAddress(EMPTY_ADDRESS);
-      setShowAddressForm(false);
-
-      setAddressMessage("Delivery address saved and selected.");
-    } catch (err) {
-      setAddressError(err.message || "Unable to save the address.");
-    } finally {
-      setSavingAddress(false);
-    }
-  };
-
   const selectedAddress = addresses.find(
-    (address) => String(address.id) === String(selectedAddressId)
+    (address) =>
+      String(address.id) ===
+      String(selectedAddressId)
   );
 
   // =====================================
@@ -678,22 +656,34 @@ function CustomerCart() {
 
   const handleCheckout = async () => {
     if (cart.items.length === 0) {
-      setError("Your cart is empty. Add items before checkout.");
+      setError(
+        "Your cart is empty. Add items before checkout."
+      );
       return;
     }
 
     if (loadingAddresses) {
-      setError("Please wait while your saved addresses load.");
+      setError(
+        "Please wait while your saved addresses load."
+      );
       return;
     }
 
-    if (!selectedAddressId || !selectedAddress) {
+    // IMPORTANT:
+    // Customer MUST select an existing saved address.
+    // We do NOT create a new address here.
+    if (
+      !selectedAddressId ||
+      !selectedAddress
+    ) {
       setAddressError(
-        "Please select a delivery address or add a new address before checkout."
+        "Please select one of your saved delivery addresses before checkout."
       );
 
       document
-        .getElementById("delivery-address-section")
+        .getElementById(
+          "delivery-address-section"
+        )
         ?.scrollIntoView({
           behavior: "smooth",
           block: "center",
@@ -703,6 +693,7 @@ function CustomerCart() {
     }
 
     const headers = getAuthHeaders(true);
+
     if (!headers) return;
 
     setCheckingOut(true);
@@ -715,15 +706,29 @@ function CustomerCart() {
     let paymentWindowOpened = false;
 
     try {
-      const response = await fetch(`${API_URL}/api/orders`, {
-        method: "POST",
-        headers,
-        body: JSON.stringify({
-          couponCode: appliedCoupon || null,
-          paymentMethod,
-          addressId: Number(selectedAddressId),
-        }),
-      });
+      // =====================================
+      // PLACE ORDER WITH SELECTED ADDRESS ID
+      // =====================================
+
+      const response = await fetch(
+        `${API_URL}/api/orders`,
+        {
+          method: "POST",
+          headers,
+          body: JSON.stringify({
+            couponCode:
+              appliedCoupon || null,
+
+            paymentMethod,
+
+            // THIS IS THE IMPORTANT MODIFICATION
+            // The order uses the address already saved
+            // in Customer Addresses.
+            addressId:
+              Number(selectedAddressId),
+          }),
+        }
+      );
 
       if (handleUnauthorized(response)) return;
 
@@ -731,11 +736,15 @@ function CustomerCart() {
 
       if (!response.ok) {
         throw new Error(
-          getErrorMessage(data, "Unable to place your order.")
+          getErrorMessage(
+            data,
+            "Unable to place your order."
+          )
         );
       }
 
-      createdOrderId = data.orderId ?? data.id;
+      createdOrderId =
+        data.orderId ?? data.id;
 
       if (createdOrderId == null) {
         throw new Error(
@@ -743,12 +752,19 @@ function CustomerCart() {
         );
       }
 
-      setPlacedOrderId(createdOrderId);
+      setPlacedOrderId(
+        createdOrderId
+      );
 
+      // =====================================
       // CASH ON DELIVERY
+      // =====================================
+
       if (paymentMethod === "COD") {
         setCart(EMPTY_CART);
+
         clearCouponState();
+
         notifyCartUpdated();
 
         await loadAvailableCoupons();
@@ -760,8 +776,12 @@ function CustomerCart() {
         return;
       }
 
-      // LOAD RAZORPAY SCRIPT
-      const sdkLoaded = await loadRazorpayScript();
+      // =====================================
+      // LOAD RAZORPAY
+      // =====================================
+
+      const sdkLoaded =
+        await loadRazorpayScript();
 
       if (!sdkLoaded) {
         throw new Error(
@@ -769,7 +789,8 @@ function CustomerCart() {
         );
       }
 
-      const currentToken = getToken();
+      const currentToken =
+        getToken();
 
       if (!currentToken) {
         throw new Error(
@@ -777,21 +798,38 @@ function CustomerCart() {
         );
       }
 
+      // =====================================
       // CREATE RAZORPAY ORDER
-      const razorpayResponse = await fetch(
-        `${API_URL}/api/orders/${encodeURIComponent(createdOrderId)}/razorpay-order`,
-        {
-          method: "POST",
-          headers: {
-            Authorization: `Bearer ${currentToken}`,
-            Accept: "application/json",
-          },
-        }
-      );
+      // =====================================
 
-      if (handleUnauthorized(razorpayResponse)) return;
+      const razorpayResponse =
+        await fetch(
+          `${API_URL}/api/orders/${encodeURIComponent(
+            createdOrderId
+          )}/razorpay-order`,
+          {
+            method: "POST",
+            headers: {
+              Authorization:
+                `Bearer ${currentToken}`,
+              Accept:
+                "application/json",
+            },
+          }
+        );
 
-      const razorpayOrder = await parseResponse(razorpayResponse);
+      if (
+        handleUnauthorized(
+          razorpayResponse
+        )
+      ) {
+        return;
+      }
+
+      const razorpayOrder =
+        await parseResponse(
+          razorpayResponse
+        );
 
       if (!razorpayResponse.ok) {
         throw new Error(
@@ -812,126 +850,195 @@ function CustomerCart() {
         );
       }
 
+      // =====================================
       // OPEN RAZORPAY CHECKOUT
-      const checkout = new window.Razorpay({
-        key: razorpayOrder.keyId,
-        amount: razorpayOrder.amount,
-        currency: razorpayOrder.currency || "INR",
-        name: "Food Xpress",
-        description: `Payment for Food Xpress order #${createdOrderId}`,
-        order_id: razorpayOrder.razorpayOrderId,
+      // =====================================
 
-        // ENABLE ALL MAIN RAZORPAY PAYMENT METHODS
-        method: {
-          card: true,
-          netbanking: true,
-          upi: true,
-          wallet: true,
-        },
+      const checkout =
+        new window.Razorpay({
+          key: razorpayOrder.keyId,
 
-        theme: {
-          color: PURPLE,
-        },
+          amount:
+            razorpayOrder.amount,
 
-        prefill: {
-          name: customerName === "Food Lover" ? "" : customerName,
-          email: customerEmail,
-        },
+          currency:
+            razorpayOrder.currency ||
+            "INR",
 
-        // PAYMENT SUCCESS HANDLER
-        handler: async (checkoutResult) => {
-          try {
-            const verificationToken = getToken();
+          name: "Food Xpress",
 
-            if (!verificationToken) {
-              setError(
-                "Payment was submitted, but your session is missing. Sign in and verify the order status before retrying."
-              );
-              return;
-            }
+          description:
+            `Payment for Food Xpress order #${createdOrderId}`,
 
-            const verifyResponse = await fetch(
-              `${API_URL}/api/orders/${encodeURIComponent(createdOrderId)}/verify-payment`,
-              {
-                method: "POST",
-                headers: {
-                  Authorization: `Bearer ${verificationToken}`,
-                  "Content-Type": "application/json",
-                  Accept: "application/json",
-                },
-                body: JSON.stringify({
-                  razorpay_order_id:
-                    checkoutResult.razorpay_order_id,
+          order_id:
+            razorpayOrder.razorpayOrderId,
 
-                  razorpay_payment_id:
-                    checkoutResult.razorpay_payment_id,
-
-                  razorpay_signature:
-                    checkoutResult.razorpay_signature,
-                }),
-              }
-            );
-
-            if (handleUnauthorized(verifyResponse)) return;
-
-            const verifyData = await parseResponse(verifyResponse);
-
-            if (!verifyResponse.ok) {
-              throw new Error(
-                getErrorMessage(
-                  verifyData,
-                  "Payment verification failed. Check My Orders."
-                )
-              );
-            }
-
-            setCart(EMPTY_CART);
-            clearCouponState();
-            notifyCartUpdated();
-
-            setError("");
-
-            setMessage(
-              `Payment verified successfully for order #${createdOrderId}.`
-            );
-
-            setPlacedOrderId(createdOrderId);
-
-            await loadAvailableCoupons();
-          } catch (err) {
-            setError(
-              err.message ||
-                "Unable to verify payment. Check My Orders."
-            );
-          } finally {
-            setCheckingOut(false);
-          }
-        },
-
-        // PAYMENT WINDOW CLOSED
-        modal: {
-          ondismiss: () => {
-            setCheckingOut(false);
-
-            setMessage(
-              `Razorpay Checkout was closed. Order #${createdOrderId} may still be pending payment. Check My Orders before starting another order.`
-            );
+          method: {
+            card: true,
+            netbanking: true,
+            upi: true,
+            wallet: true,
           },
-        },
-      });
 
-      checkout.on("payment.failed", () => {
-        setError(
-          `Payment for order #${createdOrderId} was not completed. Check My Orders before retrying.`
-        );
+          theme: {
+            color: PURPLE,
+          },
 
-        setCheckingOut(false);
-      });
+          prefill: {
+            name:
+              customerName ===
+              "Food Lover"
+                ? ""
+                : customerName,
+
+            email:
+              customerEmail,
+          },
+
+          // =====================================
+          // PAYMENT SUCCESS
+          // =====================================
+
+          handler:
+            async (
+              checkoutResult
+            ) => {
+              try {
+                const verificationToken =
+                  getToken();
+
+                if (
+                  !verificationToken
+                ) {
+                  setError(
+                    "Payment was submitted, but your session is missing. Sign in and verify the order status before retrying."
+                  );
+
+                  return;
+                }
+
+                const verifyResponse =
+                  await fetch(
+                    `${API_URL}/api/orders/${encodeURIComponent(
+                      createdOrderId
+                    )}/verify-payment`,
+                    {
+                      method:
+                        "POST",
+
+                      headers: {
+                        Authorization:
+                          `Bearer ${verificationToken}`,
+
+                        "Content-Type":
+                          "application/json",
+
+                        Accept:
+                          "application/json",
+                      },
+
+                      body: JSON.stringify({
+                        razorpay_order_id:
+                          checkoutResult.razorpay_order_id,
+
+                        razorpay_payment_id:
+                          checkoutResult.razorpay_payment_id,
+
+                        razorpay_signature:
+                          checkoutResult.razorpay_signature,
+                      }),
+                    }
+                  );
+
+                if (
+                  handleUnauthorized(
+                    verifyResponse
+                  )
+                ) {
+                  return;
+                }
+
+                const verifyData =
+                  await parseResponse(
+                    verifyResponse
+                  );
+
+                if (
+                  !verifyResponse.ok
+                ) {
+                  throw new Error(
+                    getErrorMessage(
+                      verifyData,
+                      "Payment verification failed. Check My Orders."
+                    )
+                  );
+                }
+
+                setCart(
+                  EMPTY_CART
+                );
+
+                clearCouponState();
+
+                notifyCartUpdated();
+
+                setError("");
+
+                setMessage(
+                  `Payment verified successfully for order #${createdOrderId}.`
+                );
+
+                setPlacedOrderId(
+                  createdOrderId
+                );
+
+                await loadAvailableCoupons();
+              } catch (err) {
+                setError(
+                  err.message ||
+                    "Unable to verify payment. Check My Orders."
+                );
+              } finally {
+                setCheckingOut(
+                  false
+                );
+              }
+            },
+
+          // =====================================
+          // PAYMENT WINDOW CLOSED
+          // =====================================
+
+          modal: {
+            ondismiss: () => {
+              setCheckingOut(false);
+
+              setMessage(
+                `Razorpay Checkout was closed. Order #${createdOrderId} may still be pending payment. Check My Orders before starting another order.`
+              );
+            },
+          },
+        });
+
+      checkout.on(
+        "payment.failed",
+        () => {
+          setError(
+            `Payment for order #${createdOrderId} was not completed. Check My Orders before retrying.`
+          );
+
+          setCheckingOut(false);
+        }
+      );
 
       checkout.open();
+
       paymentWindowOpened = true;
     } catch (err) {
-      setError(err.message || "Unable to complete checkout.");
+      setError(
+        err.message ||
+          "Unable to complete checkout."
+      );
     } finally {
       if (!paymentWindowOpened) {
         setCheckingOut(false);
@@ -939,15 +1046,25 @@ function CustomerCart() {
     }
   };
 
+  // =====================================
   // SERVER-CALCULATED DISCOUNT
+  // =====================================
+
   const discountAmount =
-    appliedCoupon && couponDetails
-      ? Number(couponDetails.discountAmount || 0)
+    appliedCoupon &&
+    couponDetails
+      ? Number(
+          couponDetails.discountAmount ||
+            0
+        )
       : 0;
 
   const finalTotal =
-    appliedCoupon && couponDetails
-      ? Number(couponDetails.totalAmount)
+    appliedCoupon &&
+    couponDetails
+      ? Number(
+          couponDetails.totalAmount
+        )
       : cart.totalAmount;
 
   // =====================================
@@ -1142,10 +1259,13 @@ function CustomerCart() {
         }
       `}</style>
 
+      {/* NAVBAR */}
+
       <nav
         className="navbar navbar-dark py-2 customer-cart-navbar"
         style={{
-          background: "linear-gradient(100deg, #51208f, #381071)",
+          background:
+            "linear-gradient(100deg, #51208f, #381071)",
         }}
       >
         <div className="container-fluid px-3 px-xl-5">
@@ -1154,7 +1274,14 @@ function CustomerCart() {
             className="navbar-brand d-flex align-items-center gap-2"
           >
             <span className="fw-bold fs-4">
-              ♨ Food <span style={{ color: "#d9a2ff" }}>Xpress</span>
+              ♨ Food{" "}
+              <span
+                style={{
+                  color: "#d9a2ff",
+                }}
+              >
+                Xpress
+              </span>
             </span>
           </Link>
 
@@ -1166,7 +1293,9 @@ function CustomerCart() {
             <button
               type="button"
               className="btn btn-outline-light rounded-pill"
-              onClick={() => navigate("/customer/home")}
+              onClick={() =>
+                navigate("/customer/home")
+              }
             >
               ← Continue Shopping
             </button>
@@ -1177,7 +1306,10 @@ function CustomerCart() {
       <main className="container py-4 py-lg-5 customer-cart-main cart-main-container">
         <div className="d-flex flex-wrap justify-content-between align-items-center gap-3 mb-4 cart-page-heading">
           <div>
-            <h1 className="fw-bold mb-1" style={{ color: DARK }}>
+            <h1
+              className="fw-bold mb-1"
+              style={{ color: DARK }}
+            >
               My Shopping Cart 🛒
             </h1>
 
@@ -1186,28 +1318,44 @@ function CustomerCart() {
             </p>
           </div>
 
-          {!loading && cart.items.length > 0 && (
-            <button
-              type="button"
-              className="btn btn-outline-danger rounded-pill"
-              onClick={clearCart}
-              disabled={clearing || checkingOut}
-            >
-              {clearing ? "Clearing..." : "Clear Cart"}
-            </button>
-          )}
+          {!loading &&
+            cart.items.length > 0 && (
+              <button
+                type="button"
+                className="btn btn-outline-danger rounded-pill"
+                onClick={clearCart}
+                disabled={
+                  clearing ||
+                  checkingOut
+                }
+              >
+                {clearing
+                  ? "Clearing..."
+                  : "Clear Cart"}
+              </button>
+            )}
         </div>
 
+        {/* SUCCESS MESSAGE */}
+
         {message && (
-          <div className="alert alert-success" role="status">
+          <div
+            className="alert alert-success"
+            role="status"
+          >
             {message}
 
             <div className="mt-3 d-flex flex-wrap gap-2">
-              {placedOrderId != null && (
+              {placedOrderId !=
+                null && (
                 <button
                   type="button"
                   className="btn btn-sm btn-success"
-                  onClick={() => navigate("/customer/orders")}
+                  onClick={() =>
+                    navigate(
+                      "/customer/orders"
+                    )
+                  }
                 >
                   View My Orders
                 </button>
@@ -1216,15 +1364,22 @@ function CustomerCart() {
               <button
                 type="button"
                 className="btn-close ms-auto"
-                onClick={() => setMessage("")}
+                onClick={() =>
+                  setMessage("")
+                }
                 aria-label="Close"
               />
             </div>
           </div>
         )}
 
+        {/* ERROR MESSAGE */}
+
         {error && (
-          <div className="alert alert-danger" role="alert">
+          <div
+            className="alert alert-danger"
+            role="alert"
+          >
             {error}
 
             <div className="mt-3 d-flex flex-wrap gap-2">
@@ -1236,11 +1391,16 @@ function CustomerCart() {
                 Refresh Cart
               </button>
 
-              {placedOrderId != null && (
+              {placedOrderId !=
+                null && (
                 <button
                   type="button"
                   className="btn btn-sm btn-outline-danger"
-                  onClick={() => navigate("/customer/orders")}
+                  onClick={() =>
+                    navigate(
+                      "/customer/orders"
+                    )
+                  }
                 >
                   Check My Orders
                 </button>
@@ -1249,11 +1409,15 @@ function CustomerCart() {
           </div>
         )}
 
+        {/* LOADING */}
+
         {loading ? (
           <div className="text-center py-5">
             <div
               className="spinner-border"
-              style={{ color: PURPLE }}
+              style={{
+                color: PURPLE,
+              }}
               role="status"
             />
 
@@ -1262,516 +1426,517 @@ function CustomerCart() {
             </p>
           </div>
         ) : cart.items.length === 0 ? (
-          <div className="card border-0 rounded-4 shadow-sm text-center p-4 p-md-5">
-            <div style={{ fontSize: 75 }}>🛒</div>
+          /* EMPTY CART */
 
-            <h2 className="fw-bold mt-3" style={{ color: DARK }}>
+          <div className="card border-0 rounded-4 shadow-sm text-center p-4 p-md-5">
+            <div
+              style={{
+                fontSize: 75,
+              }}
+            >
+              🛒
+            </div>
+
+            <h2
+              className="fw-bold mt-3"
+              style={{
+                color: DARK,
+              }}
+            >
               Your cart is empty!
             </h2>
 
             <p className="text-secondary">
-              Delicious food is waiting for you. Let's find something tasty.
+              Delicious food is waiting for you.
+              Let's find something tasty.
             </p>
 
             <button
               type="button"
               className="btn text-white rounded-pill px-4 py-2 mt-2"
-              style={{ backgroundColor: PURPLE }}
-              onClick={() => navigate("/customer/home")}
+              style={{
+                backgroundColor:
+                  PURPLE,
+              }}
+              onClick={() =>
+                navigate(
+                  "/customer/home"
+                )
+              }
             >
               Explore Restaurants →
             </button>
           </div>
         ) : (
           <div className="row g-4">
+            {/* =====================================
+                LEFT SIDE
+            ===================================== */}
+
             <div className="col-12 col-lg-8">
+
+              {/* CART ITEMS */}
+
               <div className="card border-0 rounded-4 shadow-sm mb-4">
                 <div className="card-header bg-white border-0 p-4">
-                  <h4 className="fw-bold mb-0" style={{ color: DARK }}>
-                    Cart Items ({cart.totalQuantity})
+                  <h4
+                    className="fw-bold mb-0"
+                    style={{
+                      color: DARK,
+                    }}
+                  >
+                    Cart Items (
+                    {cart.totalQuantity})
                   </h4>
                 </div>
 
                 <div className="card-body p-3 p-md-4 pt-0 cart-card-body">
-                  {cart.items.map((item) => {
-                    const foodImageUrl = getFoodImageUrl(item.imageUrl);
+                  {cart.items.map(
+                    (item) => {
+                      const foodImageUrl =
+                        getFoodImageUrl(
+                          item.imageUrl
+                        );
 
-                    return (
-                      <div
-                        key={item.cartItemId}
-                        className="row align-items-center g-3 py-3 border-bottom cart-item-row"
-                      >
-                        <div className="col-4 col-sm-3">
-                          {foodImageUrl ? (
-                            <img
-                              src={foodImageUrl}
-                              alt={item.foodName || "Food item"}
-                              className="img-fluid rounded-3 w-100 cart-item-image"
-                              loading="lazy"
+                      return (
+                        <div
+                          key={
+                            item.cartItemId
+                          }
+                          className="row align-items-center g-3 py-3 border-bottom cart-item-row"
+                        >
+                          <div className="col-4 col-sm-3">
+                            {foodImageUrl ? (
+                              <img
+                                src={
+                                  foodImageUrl
+                                }
+                                alt={
+                                  item.foodName ||
+                                  "Food item"
+                                }
+                                className="img-fluid rounded-3 w-100 cart-item-image"
+                                loading="lazy"
+                                style={{
+                                  height: 115,
+                                  objectFit:
+                                    "cover",
+                                  backgroundColor:
+                                    "#f0e5ff",
+                                }}
+                                onError={(
+                                  event
+                                ) => {
+                                  event.currentTarget.style.display =
+                                    "none";
+
+                                  const fallback =
+                                    event
+                                      .currentTarget
+                                      .nextElementSibling;
+
+                                  if (
+                                    fallback
+                                  ) {
+                                    fallback.style.display =
+                                      "flex";
+                                  }
+                                }}
+                              />
+                            ) : null}
+
+                            <div
+                              className="rounded-3 align-items-center justify-content-center cart-item-image"
                               style={{
+                                display:
+                                  foodImageUrl
+                                    ? "none"
+                                    : "flex",
                                 height: 115,
-                                objectFit: "cover",
-                                backgroundColor: "#f0e5ff",
+                                backgroundColor:
+                                  "#f0e5ff",
+                                fontSize: 42,
                               }}
-                              onError={(event) => {
-                                event.currentTarget.style.display = "none";
-                                const fallback =
-                                  event.currentTarget.nextElementSibling;
-                                if (fallback) {
-                                  fallback.style.display = "flex";
-                                }
-                              }}
-                            />
-                          ) : null}
-
-                          <div
-                            className="rounded-3 align-items-center justify-content-center cart-item-image"
-                            style={{
-                              display: foodImageUrl ? "none" : "flex",
-                              height: 115,
-                              backgroundColor: "#f0e5ff",
-                              fontSize: 42,
-                            }}
-                          >
-                            🍽️
-                          </div>
-                        </div>
-
-                        <div className="col-8 col-sm-9 cart-item-details">
-                          <div className="cart-item-heading">
-                            <div>
-                              <h5
-                                className="fw-bold mb-1"
-                                style={{ color: DARK }}
-                              >
-                                {item.foodName}
-                              </h5>
-
-                              <p className="small text-secondary mb-2">
-                                {item.restaurantName}
-                              </p>
-
-                              <div
-                                className="fw-bold"
-                                style={{ color: PURPLE }}
-                              >
-                                {formatPrice(item.unitPrice)}
-                              </div>
-                            </div>
-
-                            <button
-                              type="button"
-                              className="btn btn-sm btn-outline-danger align-self-start"
-                              disabled={
-                                busyItem === item.cartItemId ||
-                                checkingOut
-                              }
-                              onClick={() => removeItem(item)}
                             >
-                              Remove
-                            </button>
+                              🍽️
+                            </div>
                           </div>
 
-                          <div className="cart-item-controls mt-3">
-                            <div className="btn-group" role="group">
+                          <div className="col-8 col-sm-9 cart-item-details">
+                            <div className="cart-item-heading">
+                              <div>
+                                <h5
+                                  className="fw-bold mb-1"
+                                  style={{
+                                    color:
+                                      DARK,
+                                  }}
+                                >
+                                  {
+                                    item.foodName
+                                  }
+                                </h5>
+
+                                <p className="small text-secondary mb-2">
+                                  {
+                                    item.restaurantName
+                                  }
+                                </p>
+
+                                <div
+                                  className="fw-bold"
+                                  style={{
+                                    color:
+                                      PURPLE,
+                                  }}
+                                >
+                                  {formatPrice(
+                                    item.unitPrice
+                                  )}
+                                </div>
+                              </div>
+
                               <button
                                 type="button"
-                                className="btn btn-sm btn-outline-secondary"
+                                className="btn btn-sm btn-outline-danger align-self-start"
                                 disabled={
-                                  busyItem === item.cartItemId ||
-                                  item.quantity <= 1 ||
+                                  busyItem ===
+                                    item.cartItemId ||
                                   checkingOut
                                 }
                                 onClick={() =>
-                                  updateQuantity(item, item.quantity - 1)
+                                  removeItem(
+                                    item
+                                  )
                                 }
                               >
-                                −
-                              </button>
-
-                              <span
-                                className="btn btn-sm border bg-light"
-                                style={{ minWidth: 42 }}
-                              >
-                                {busyItem === item.cartItemId
-                                  ? "..."
-                                  : item.quantity}
-                              </span>
-
-                              <button
-                                type="button"
-                                className="btn btn-sm btn-outline-secondary"
-                                disabled={
-                                  busyItem === item.cartItemId ||
-                                  item.quantity >= 99 ||
-                                  checkingOut
-                                }
-                                onClick={() =>
-                                  updateQuantity(item, item.quantity + 1)
-                                }
-                              >
-                                +
+                                Remove
                               </button>
                             </div>
 
-                            <span className="small fw-semibold ms-auto cart-item-subtotal">
-                              Subtotal: {formatPrice(item.subtotal)}
-                            </span>
+                            <div className="cart-item-controls mt-3">
+                              <div
+                                className="btn-group"
+                                role="group"
+                              >
+                                <button
+                                  type="button"
+                                  className="btn btn-sm btn-outline-secondary"
+                                  disabled={
+                                    busyItem ===
+                                      item.cartItemId ||
+                                    item.quantity <=
+                                      1 ||
+                                    checkingOut
+                                  }
+                                  onClick={() =>
+                                    updateQuantity(
+                                      item,
+                                      item.quantity -
+                                        1
+                                    )
+                                  }
+                                >
+                                  −
+                                </button>
+
+                                <span
+                                  className="btn btn-sm border bg-light"
+                                  style={{
+                                    minWidth: 42,
+                                  }}
+                                >
+                                  {busyItem ===
+                                  item.cartItemId
+                                    ? "..."
+                                    : item.quantity}
+                                </span>
+
+                                <button
+                                  type="button"
+                                  className="btn btn-sm btn-outline-secondary"
+                                  disabled={
+                                    busyItem ===
+                                      item.cartItemId ||
+                                    item.quantity >=
+                                      99 ||
+                                    checkingOut
+                                  }
+                                  onClick={() =>
+                                    updateQuantity(
+                                      item,
+                                      item.quantity +
+                                        1
+                                    )
+                                  }
+                                >
+                                  +
+                                </button>
+                              </div>
+
+                              <span className="small fw-semibold ms-auto cart-item-subtotal">
+                                Subtotal:{" "}
+                                {formatPrice(
+                                  item.subtotal
+                                )}
+                              </span>
+                            </div>
                           </div>
                         </div>
-                      </div>
-                    );
-                  })}
+                      );
+                    }
+                  )}
 
                   <div className="d-flex flex-wrap justify-content-between align-items-center gap-2 pt-4">
                     <Link
                       to="/customer/home"
                       className="text-decoration-none fw-semibold"
-                      style={{ color: PURPLE }}
+                      style={{
+                        color: PURPLE,
+                      }}
                     >
                       ← Continue Shopping
                     </Link>
 
                     <span className="text-secondary small">
-                      {cart.totalQuantity} item(s)
+                      {
+                        cart.totalQuantity
+                      }{" "}
+                      item(s)
                     </span>
                   </div>
                 </div>
               </div>
 
-              {/* DELIVERY ADDRESS SECTION */}
+              {/* =====================================
+                  SAVED DELIVERY ADDRESS
+              ===================================== */}
+
               <div
                 id="delivery-address-section"
                 className="card border-0 rounded-4 shadow-sm mb-4"
               >
                 <div className="card-body p-4 cart-card-body">
-                  <div className="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-3">
-                    <div>
-                      <h4
-                        className="fw-bold mb-1"
-                        style={{ color: DARK }}
-                      >
-                        📍 Delivery Address
-                      </h4>
 
-                      <p className="text-secondary small mb-0">
-                        Choose where you want your food delivered.
-                      </p>
-                    </div>
-
-                    <button
-                      type="button"
-                      className="btn btn-outline-primary rounded-pill"
-                      disabled={checkingOut}
-                      onClick={() => {
-                        setShowAddressForm((show) => !show);
-                        setAddressError("");
-                        setAddressMessage("");
+                  <div className="mb-3">
+                    <h4
+                      className="fw-bold mb-1"
+                      style={{
+                        color: DARK,
                       }}
                     >
-                      {showAddressForm
-                        ? "Cancel"
-                        : "+ Add New Address"}
-                    </button>
+                      📍 Delivery Address
+                    </h4>
+
+                    <p className="text-secondary small mb-0">
+                      Select one of your saved
+                      addresses for this order.
+                    </p>
                   </div>
 
                   {addressError && (
-                    <div className="alert alert-danger py-2" role="alert">
+                    <div
+                      className="alert alert-danger py-2"
+                      role="alert"
+                    >
                       {addressError}
                     </div>
                   )}
 
                   {addressMessage && (
-                    <div className="alert alert-success py-2" role="status">
+                    <div
+                      className="alert alert-success py-2"
+                      role="status"
+                    >
                       {addressMessage}
                     </div>
                   )}
 
                   {loadingAddresses ? (
                     <p className="text-secondary mb-0">
-                      Loading saved addresses...
+                      Loading saved
+                      addresses...
                     </p>
-                  ) : addresses.length === 0 && !showAddressForm ? (
+                  ) : addresses.length ===
+                    0 ? (
                     <div className="alert alert-warning mb-0">
-                      You have no saved delivery addresses. Click{" "}
-                      <strong>Add New Address</strong> before checkout.
+                      You have no saved
+                      delivery addresses.
+                      Please add an address
+                      from your Customer
+                      Addresses page before
+                      checkout.
                     </div>
-                  ) : addresses.length > 0 ? (
+                  ) : (
                     <div className="row g-3">
-                      {addresses.map((address) => (
-                        <div
-                          className="col-12 col-md-6"
-                          key={address.id}
-                        >
-                          <button
-                            type="button"
-                            className="w-100 h-100 text-start rounded-3 p-3 cart-address-card"
-                            disabled={checkingOut}
-                            onClick={() => {
-                              setSelectedAddressId(String(address.id));
-                              setAddressError("");
-                              setAddressMessage("");
-                            }}
-                            style={{
-                              backgroundColor:
-                                String(selectedAddressId) ===
-                                String(address.id)
-                                  ? "#f4edff"
-                                  : "#ffffff",
-                              border:
-                                String(selectedAddressId) ===
-                                String(address.id)
-                                  ? `2px solid ${PURPLE}`
-                                  : "1px solid #dee2e6",
-                            }}
+                      {addresses.map(
+                        (address) => (
+                          <div
+                            className="col-12 col-md-6"
+                            key={
+                              address.id
+                            }
                           >
-                            <div className="d-flex justify-content-between align-items-center gap-2 mb-2 flex-wrap">
-                              <strong style={{ color: DARK }}>
-                                {address.label || "Delivery"}
-                              </strong>
+                            <button
+                              type="button"
+                              className="w-100 h-100 text-start rounded-3 p-3 cart-address-card"
+                              disabled={
+                                checkingOut
+                              }
+                              onClick={() => {
+                                setSelectedAddressId(
+                                  String(
+                                    address.id
+                                  )
+                                );
 
-                              {String(selectedAddressId) ===
-                                String(address.id) && (
-                                <span className="badge text-bg-primary">
-                                  Selected
-                                </span>
-                              )}
+                                setAddressError(
+                                  ""
+                                );
 
-                              {address.defaultAddress && (
-                                <span className="badge text-bg-success">
-                                  Default
-                                </span>
-                              )}
-                            </div>
+                                setAddressMessage(
+                                  "Delivery address selected."
+                                );
+                              }}
+                              style={{
+                                backgroundColor:
+                                  String(
+                                    selectedAddressId
+                                  ) ===
+                                  String(
+                                    address.id
+                                  )
+                                    ? "#f4edff"
+                                    : "#ffffff",
 
-                            <div className="fw-semibold">
-                              {address.recipientName}
-                            </div>
+                                border:
+                                  String(
+                                    selectedAddressId
+                                  ) ===
+                                  String(
+                                    address.id
+                                  )
+                                    ? `2px solid ${PURPLE}`
+                                    : "1px solid #dee2e6",
+                              }}
+                            >
+                              <div className="d-flex justify-content-between align-items-center gap-2 mb-2 flex-wrap">
+                                <strong
+                                  style={{
+                                    color:
+                                      DARK,
+                                  }}
+                                >
+                                  {address.label ||
+                                    "Delivery"}
+                                </strong>
 
-                            <div className="small text-secondary">
-                              {address.phone}
-                            </div>
+                                {String(
+                                  selectedAddressId
+                                ) ===
+                                  String(
+                                    address.id
+                                  ) && (
+                                  <span className="badge text-bg-primary">
+                                    Selected
+                                  </span>
+                                )}
 
-                            <div className="small mt-2">
-                              {[
-                                address.addressLine,
-                                address.city,
-                                address.state,
-                                address.pincode,
-                              ]
-                                .filter(Boolean)
-                                .join(", ")}
-                            </div>
-                          </button>
-                        </div>
-                      ))}
-                    </div>
-                  ) : null}
+                                {address.defaultAddress && (
+                                  <span className="badge text-bg-success">
+                                    Default
+                                  </span>
+                                )}
+                              </div>
 
-                  {selectedAddress && (
-                    <div className="mt-3 small text-success">
-                      <strong>Delivering to:</strong>{" "}
-                      {selectedAddress.recipientName} —{" "}
-                      {selectedAddress.addressLine},{" "}
-                      {selectedAddress.city}
+                              <div className="fw-semibold">
+                                {
+                                  address.recipientName
+                                }
+                              </div>
+
+                              <div className="small text-secondary">
+                                {
+                                  address.phone
+                                }
+                              </div>
+
+                              <div className="small mt-2">
+                                {[
+                                  address.addressLine ||
+                                    address.formattedAddress,
+
+                                  address.city,
+
+                                  address.state,
+
+                                  address.pincode,
+                                ]
+                                  .filter(
+                                    Boolean
+                                  )
+                                  .join(
+                                    ", "
+                                  )}
+                              </div>
+                            </button>
+                          </div>
+                        )
+                      )}
                     </div>
                   )}
 
-                  {showAddressForm && (
-                    <form
-                      className="border rounded-3 p-3 p-md-4 mt-4"
-                      onSubmit={saveNewAddress}
-                    >
-                      <h5
-                        className="fw-bold mb-3"
-                        style={{ color: DARK }}
-                      >
-                        Add Delivery Address
-                      </h5>
-
-                      <div className="row g-3">
-                        <div className="col-12 col-md-4">
-                          <label className="form-label fw-semibold">
-                            Address Label
-                          </label>
-
-                          <select
-                            className="form-select"
-                            name="label"
-                            value={newAddress.label}
-                            onChange={handleAddressInput}
-                            required
-                          >
-                            <option value="Home">Home</option>
-                            <option value="Work">Work</option>
-                            <option value="Other">Other</option>
-                          </select>
-                        </div>
-
-                        <div className="col-12 col-md-8">
-                          <label className="form-label fw-semibold">
-                            Recipient Name
-                          </label>
-
-                          <input
-                            className="form-control"
-                            name="recipientName"
-                            value={newAddress.recipientName}
-                            onChange={handleAddressInput}
-                            maxLength={100}
-                            required
-                          />
-                        </div>
-
-                        <div className="col-12 col-md-6">
-                          <label className="form-label fw-semibold">
-                            Phone Number
-                          </label>
-
-                          <input
-                            className="form-control"
-                            name="phone"
-                            type="tel"
-                            value={newAddress.phone}
-                            onChange={handleAddressInput}
-                            maxLength={20}
-                            required
-                          />
-                        </div>
-
-                        <div className="col-12 col-md-6">
-                          <label className="form-label fw-semibold">
-                            PIN Code
-                          </label>
-
-                          <input
-                            className="form-control"
-                            name="pincode"
-                            value={newAddress.pincode}
-                            onChange={handleAddressInput}
-                            maxLength={12}
-                            required
-                          />
-                        </div>
-
-                        <div className="col-12">
-                          <label className="form-label fw-semibold">
-                            Full Address
-                          </label>
-
-                          <textarea
-                            className="form-control"
-                            name="addressLine"
-                            rows="2"
-                            value={newAddress.addressLine}
-                            onChange={handleAddressInput}
-                            maxLength={500}
-                            placeholder="House/flat number, street, area"
-                            required
-                          />
-                        </div>
-
-                        <div className="col-12 col-md-6">
-                          <label className="form-label fw-semibold">
-                            City
-                          </label>
-
-                          <input
-                            className="form-control"
-                            name="city"
-                            value={newAddress.city}
-                            onChange={handleAddressInput}
-                            required
-                          />
-                        </div>
-
-                        <div className="col-12 col-md-6">
-                          <label className="form-label fw-semibold">
-                            State
-                          </label>
-
-                          <input
-                            className="form-control"
-                            name="state"
-                            value={newAddress.state}
-                            onChange={handleAddressInput}
-                            required
-                          />
-                        </div>
-
-                        <div className="col-12">
-                          <div className="form-check">
-                            <input
-                              className="form-check-input"
-                              id="defaultAddress"
-                              name="defaultAddress"
-                              type="checkbox"
-                              checked={newAddress.defaultAddress}
-                              onChange={handleAddressInput}
-                            />
-
-                            <label
-                              className="form-check-label"
-                              htmlFor="defaultAddress"
-                            >
-                              Set as my default address
-                            </label>
-                          </div>
-                        </div>
-
-                        <div className="col-12 d-flex flex-wrap gap-2">
-                          <button
-                            type="submit"
-                            className="btn text-white"
-                            style={{ backgroundColor: PURPLE }}
-                            disabled={savingAddress}
-                          >
-                            {savingAddress
-                              ? "Saving Address..."
-                              : "Save and Select Address"}
-                          </button>
-
-                          <button
-                            type="button"
-                            className="btn btn-outline-secondary"
-                            disabled={savingAddress}
-                            onClick={() => {
-                              setShowAddressForm(false);
-                              setNewAddress(EMPTY_ADDRESS);
-                              setAddressError("");
-                            }}
-                          >
-                            Cancel
-                          </button>
-                        </div>
-                      </div>
-                    </form>
+                  {selectedAddress && (
+                    <div className="mt-3 small text-success">
+                      <strong>
+                        Delivering to:
+                      </strong>{" "}
+                      {
+                        selectedAddress.recipientName
+                      } —{" "}
+                      {selectedAddress.addressLine ||
+                        selectedAddress.formattedAddress}
+                      ,{" "}
+                      {
+                        selectedAddress.city
+                      }
+                    </div>
                   )}
                 </div>
               </div>
 
-              {/* DYNAMIC ADMIN COUPONS */}
+              {/* =====================================
+                  COUPONS
+              ===================================== */}
+
               <div className="card border-0 rounded-4 shadow-sm">
                 <div className="card-body p-4 cart-card-body">
                   <div className="d-flex justify-content-between align-items-center flex-wrap gap-2">
                     <div>
                       <h4
                         className="fw-bold mb-2"
-                        style={{ color: DARK }}
+                        style={{
+                          color: DARK,
+                        }}
                       >
                         🎟️ Coupons & Offers
                       </h4>
 
                       <p className="small text-secondary mb-0">
-                        Choose an offer created by Food Xpress.
+                        Choose an offer created by
+                        Food Xpress.
                       </p>
                     </div>
 
                     <button
                       type="button"
                       className="btn btn-sm btn-outline-primary"
-                      onClick={loadAvailableCoupons}
-                      disabled={loadingCoupons}
+                      onClick={
+                        loadAvailableCoupons
+                      }
+                      disabled={
+                        loadingCoupons
+                      }
                     >
                       {loadingCoupons
                         ? "Loading..."
@@ -1789,18 +1954,28 @@ function CustomerCart() {
                     <input
                       className="form-control"
                       placeholder="Enter coupon code"
-                      value={couponInput}
+                      value={
+                        couponInput
+                      }
                       onChange={(event) =>
-                        setCouponInput(event.target.value)
+                        setCouponInput(
+                          event.target.value
+                        )
                       }
                       aria-label="Coupon code"
                     />
 
                     <button
                       className="btn text-white"
-                      style={{ backgroundColor: PURPLE }}
+                      style={{
+                        backgroundColor:
+                          PURPLE,
+                      }}
                       type="submit"
-                      disabled={applyingCoupon || checkingOut}
+                      disabled={
+                        applyingCoupon ||
+                        checkingOut
+                      }
                     >
                       {applyingCoupon
                         ? "Applying..."
@@ -1821,13 +1996,22 @@ function CustomerCart() {
                     </div>
                   )}
 
-                  {appliedCoupon && couponDetails && (
-                    <div className="alert alert-success py-2">
-                      <strong>{appliedCoupon}</strong> applied successfully.
-                      You save{" "}
-                      {formatPrice(couponDetails.discountAmount)}.
-                    </div>
-                  )}
+                  {appliedCoupon &&
+                    couponDetails && (
+                      <div className="alert alert-success py-2">
+                        <strong>
+                          {
+                            appliedCoupon
+                          }
+                        </strong>{" "}
+                        applied successfully.
+                        You save{" "}
+                        {formatPrice(
+                          couponDetails.discountAmount
+                        )}
+                        .
+                      </div>
+                    )}
 
                   {loadingCoupons ? (
                     <div className="text-center text-secondary py-4">
@@ -1836,112 +2020,158 @@ function CustomerCart() {
                         role="status"
                       />
 
-                      Loading available offers...
+                      Loading available
+                      offers...
                     </div>
-                  ) : coupons.length === 0 ? (
+                  ) : coupons.length ===
+                    0 ? (
                     <div className="alert alert-light border text-center mb-0">
-                      No active coupons are available right now.
+                      No active coupons
+                      are available right
+                      now.
                     </div>
                   ) : (
                     <div className="row g-3">
-                      {coupons.map((coupon) => {
-                        const discountLabel =
-                          coupon.discountType === "PERCENTAGE"
-                            ? `${coupon.discountValue}% OFF`
-                            : `${formatPrice(coupon.discountValue)} OFF`;
+                      {coupons.map(
+                        (coupon) => {
+                          const discountLabel =
+                            coupon.discountType ===
+                            "PERCENTAGE"
+                              ? `${coupon.discountValue}% OFF`
+                              : `${formatPrice(
+                                  coupon.discountValue
+                                )} OFF`;
 
-                        const isApplied =
-                          appliedCoupon === coupon.code;
+                          const isApplied =
+                            appliedCoupon ===
+                            coupon.code;
 
-                        return (
-                          <div
-                            className="col-12 col-md-6"
-                            key={coupon.id ?? coupon.code}
-                          >
+                          return (
                             <div
-                              className="card h-100 rounded-3"
-                              style={{
-                                backgroundColor: "#fbf8ff",
-                                border: isApplied
-                                  ? `2px solid ${PURPLE}`
-                                  : "1px dashed #b69ae4",
-                              }}
+                              className="col-12 col-md-6"
+                              key={
+                                coupon.id ??
+                                coupon.code
+                              }
                             >
-                              <div className="card-body p-3">
-                                <div className="d-flex justify-content-between align-items-center gap-2 flex-wrap">
-                                  <span
-                                    className="badge rounded-pill px-3 py-2"
-                                    style={{
-                                      backgroundColor: "#eadcff",
-                                      color: DARK,
-                                    }}
-                                  >
-                                    {discountLabel}
-                                  </span>
+                              <div
+                                className="card h-100 rounded-3"
+                                style={{
+                                  backgroundColor:
+                                    "#fbf8ff",
 
-                                  <button
-                                    type="button"
-                                    className="btn btn-sm btn-outline-primary"
-                                    disabled={
-                                      checkingOut || applyingCoupon
+                                  border:
+                                    isApplied
+                                      ? `2px solid ${PURPLE}`
+                                      : "1px dashed #b69ae4",
+                                }}
+                              >
+                                <div className="card-body p-3">
+                                  <div className="d-flex justify-content-between align-items-center gap-2 flex-wrap">
+                                    <span
+                                      className="badge rounded-pill px-3 py-2"
+                                      style={{
+                                        backgroundColor:
+                                          "#eadcff",
+                                        color:
+                                          DARK,
+                                      }}
+                                    >
+                                      {
+                                        discountLabel
+                                      }
+                                    </span>
+
+                                    <button
+                                      type="button"
+                                      className="btn btn-sm btn-outline-primary"
+                                      disabled={
+                                        checkingOut ||
+                                        applyingCoupon
+                                      }
+                                      onClick={() => {
+                                        setCouponInput(
+                                          coupon.code
+                                        );
+
+                                        setCouponMessage(
+                                          ""
+                                        );
+                                      }}
+                                    >
+                                      {isApplied
+                                        ? "Selected"
+                                        : "Select"}
+                                    </button>
+                                  </div>
+
+                                  <h6 className="fw-bold mt-3 mb-1">
+                                    {
+                                      coupon.code
                                     }
-                                    onClick={() => {
-                                      setCouponInput(coupon.code);
-                                      setCouponMessage("");
-                                    }}
-                                  >
-                                    {isApplied ? "Selected" : "Select"}
-                                  </button>
-                                </div>
+                                  </h6>
 
-                                <h6 className="fw-bold mt-3 mb-1">
-                                  {coupon.code}
-                                </h6>
+                                  <p className="small text-secondary mb-2">
+                                    {
+                                      coupon.description ||
+                                      "Special Food Xpress offer."
+                                    }
+                                  </p>
 
-                                <p className="small text-secondary mb-2">
-                                  {coupon.description ||
-                                    "Special Food Xpress offer."}
-                                </p>
+                                  <small className="d-block text-muted">
+                                    Minimum
+                                    order:{" "}
+                                    {formatPrice(
+                                      coupon.minimumOrderAmount
+                                    )}
+                                  </small>
 
-                                <small className="d-block text-muted">
-                                  Minimum order:{" "}
-                                  {formatPrice(coupon.minimumOrderAmount)}
-                                </small>
+                                  {coupon.maximumDiscount !=
+                                    null &&
+                                    coupon.discountType ===
+                                      "PERCENTAGE" && (
+                                      <small className="d-block text-muted">
+                                        Maximum
+                                        discount:{" "}
+                                        {formatPrice(
+                                          coupon.maximumDiscount
+                                        )}
+                                      </small>
+                                    )}
 
-                                {coupon.maximumDiscount != null &&
-                                  coupon.discountType === "PERCENTAGE" && (
+                                  {coupon.usageLimit !=
+                                    null && (
                                     <small className="d-block text-muted">
-                                      Maximum discount:{" "}
-                                      {formatPrice(
-                                        coupon.maximumDiscount
+                                      Uses
+                                      remaining:{" "}
+                                      {Math.max(
+                                        0,
+                                        Number(
+                                          coupon.usageLimit
+                                        ) -
+                                          Number(
+                                            coupon.usedCount ||
+                                              0
+                                          )
                                       )}
                                     </small>
                                   )}
 
-                                {coupon.usageLimit != null && (
-                                  <small className="d-block text-muted">
-                                    Uses remaining:{" "}
-                                    {Math.max(
-                                      0,
-                                      Number(coupon.usageLimit) -
-                                        Number(coupon.usedCount || 0)
-                                    )}
-                                  </small>
-                                )}
-
-                                {coupon.validUntil && (
-                                  <small className="d-block text-muted">
-                                    Valid until:{" "}
-                                    {new Date(
-                                      coupon.validUntil
-                                    ).toLocaleString()}
-                                  </small>
-                                )}
+                                  {coupon.validUntil && (
+                                    <small className="d-block text-muted">
+                                      Valid
+                                      until:{" "}
+                                      {new Date(
+                                        coupon.validUntil
+                                      ).toLocaleString()}
+                                    </small>
+                                  )}
+                                </div>
                               </div>
                             </div>
-                          </div>
-                        );
-                      })}
+                          );
+                        }
+                      )}
                     </div>
                   )}
 
@@ -1949,10 +2179,15 @@ function CustomerCart() {
                     <button
                       type="button"
                       className="btn btn-link text-danger text-decoration-none px-0 mt-2"
-                      disabled={checkingOut}
+                      disabled={
+                        checkingOut
+                      }
                       onClick={() => {
                         clearCouponState();
-                        setCouponMessage("Coupon removed.");
+
+                        setCouponMessage(
+                          "Coupon removed."
+                        );
                       }}
                     >
                       Remove applied coupon
@@ -1962,38 +2197,59 @@ function CustomerCart() {
               </div>
             </div>
 
-            {/* BILL SUMMARY AND PAYMENT */}
+            {/* =====================================
+                RIGHT SIDE - BILL SUMMARY
+            ===================================== */}
+
             <div className="col-12 col-lg-4">
               <div
                 className="card border-0 rounded-4 shadow-sm sticky-lg-top cart-summary-card"
-                style={{ top: 90 }}
+                style={{
+                  top: 90,
+                }}
               >
                 <div className="card-body p-4 cart-card-body">
                   <h4
                     className="fw-bold mb-4"
-                    style={{ color: DARK }}
+                    style={{
+                      color: DARK,
+                    }}
                   >
                     Bill Summary
                   </h4>
 
                   <div className="d-flex justify-content-between mb-3 gap-2">
-                    <span className="text-secondary">Items total</span>
+                    <span className="text-secondary">
+                      Items total
+                    </span>
+
                     <span className="fw-semibold text-end">
-                      {formatPrice(cart.totalAmount)}
+                      {formatPrice(
+                        cart.totalAmount
+                      )}
                     </span>
                   </div>
 
                   <div className="d-flex justify-content-between mb-3 gap-2">
-                    <span className="text-secondary">Delivery fee</span>
+                    <span className="text-secondary">
+                      Delivery fee
+                    </span>
+
                     <span className="text-success fw-semibold">
                       FREE
                     </span>
                   </div>
 
                   <div className="d-flex justify-content-between mb-3 gap-2">
-                    <span className="text-secondary">Discount</span>
+                    <span className="text-secondary">
+                      Discount
+                    </span>
+
                     <span className="text-success fw-semibold text-end">
-                      − {formatPrice(discountAmount)}
+                      −{" "}
+                      {formatPrice(
+                        discountAmount
+                      )}
                     </span>
                   </div>
 
@@ -2006,16 +2262,29 @@ function CustomerCart() {
 
                     <span
                       className="fw-bold fs-4 text-end"
-                      style={{ color: PURPLE }}
+                      style={{
+                        color: PURPLE,
+                      }}
                     >
-                      {formatPrice(finalTotal)}
+                      {formatPrice(
+                        finalTotal
+                      )}
                     </span>
                   </div>
 
                   {appliedCoupon && (
                     <div className="alert alert-success py-2 small">
-                      Coupon <strong>{appliedCoupon}</strong> applied.
-                      You save {formatPrice(discountAmount)}.
+                      Coupon{" "}
+                      <strong>
+                        {
+                          appliedCoupon
+                        }
+                      </strong>{" "}
+                      applied. You save{" "}
+                      {formatPrice(
+                        discountAmount
+                      )}
+                      .
                     </div>
                   )}
 
@@ -2023,24 +2292,36 @@ function CustomerCart() {
 
                   <h5
                     className="fw-bold mb-3"
-                    style={{ color: DARK }}
+                    style={{
+                      color: DARK,
+                    }}
                   >
                     Choose Payment Method
                   </h5>
 
                   {/* RAZORPAY */}
+
                   <button
                     type="button"
                     className="w-100 text-start rounded-3 p-3 mb-3"
-                    disabled={checkingOut}
-                    onClick={() => setPaymentMethod("RAZORPAY")}
+                    disabled={
+                      checkingOut
+                    }
+                    onClick={() =>
+                      setPaymentMethod(
+                        "RAZORPAY"
+                      )
+                    }
                     style={{
                       background:
-                        paymentMethod === "RAZORPAY"
+                        paymentMethod ===
+                        "RAZORPAY"
                           ? "#f4edff"
                           : "#ffffff",
+
                       border:
-                        paymentMethod === "RAZORPAY"
+                        paymentMethod ===
+                        "RAZORPAY"
                           ? `2px solid ${PURPLE}`
                           : "1px solid #dee2e6",
                     }}
@@ -2049,39 +2330,63 @@ function CustomerCart() {
                       <input
                         type="radio"
                         name="paymentMethod"
-                        checked={paymentMethod === "RAZORPAY"}
+                        checked={
+                          paymentMethod ===
+                          "RAZORPAY"
+                        }
                         onChange={() =>
-                          setPaymentMethod("RAZORPAY")
+                          setPaymentMethod(
+                            "RAZORPAY"
+                          )
                         }
                       />
 
-                      <span style={{ fontSize: 25 }}>💳</span>
+                      <span
+                        style={{
+                          fontSize: 25,
+                        }}
+                      >
+                        💳
+                      </span>
 
                       <span>
                         <strong className="d-block">
-                          Pay Online with Razorpay
+                          Pay Online with
+                          Razorpay
                         </strong>
 
                         <small className="text-secondary">
-                          Cards • UPI • Google Pay • PhonePe • Net Banking • Wallets
+                          Cards • UPI • Google
+                          Pay • PhonePe • Net
+                          Banking • Wallets
                         </small>
                       </span>
                     </div>
                   </button>
 
                   {/* CASH ON DELIVERY */}
+
                   <button
                     type="button"
                     className="w-100 text-start rounded-3 p-3 mb-4"
-                    disabled={checkingOut}
-                    onClick={() => setPaymentMethod("COD")}
+                    disabled={
+                      checkingOut
+                    }
+                    onClick={() =>
+                      setPaymentMethod(
+                        "COD"
+                      )
+                    }
                     style={{
                       background:
-                        paymentMethod === "COD"
+                        paymentMethod ===
+                        "COD"
                           ? "#f4edff"
                           : "#ffffff",
+
                       border:
-                        paymentMethod === "COD"
+                        paymentMethod ===
+                        "COD"
                           ? `2px solid ${PURPLE}`
                           : "1px solid #dee2e6",
                     }}
@@ -2090,13 +2395,24 @@ function CustomerCart() {
                       <input
                         type="radio"
                         name="paymentMethod"
-                        checked={paymentMethod === "COD"}
+                        checked={
+                          paymentMethod ===
+                          "COD"
+                        }
                         onChange={() =>
-                          setPaymentMethod("COD")
+                          setPaymentMethod(
+                            "COD"
+                          )
                         }
                       />
 
-                      <span style={{ fontSize: 25 }}>💵</span>
+                      <span
+                        style={{
+                          fontSize: 25,
+                        }}
+                      >
+                        💵
+                      </span>
 
                       <span>
                         <strong className="d-block">
@@ -2104,30 +2420,43 @@ function CustomerCart() {
                         </strong>
 
                         <small className="text-secondary">
-                          Pay when your food arrives
+                          Pay when your food
+                          arrives
                         </small>
                       </span>
                     </div>
                   </button>
 
-                  {/* CHECKOUT BUTTON */}
+                  {/* =====================================
+                      PLACE ORDER BUTTON
+                  ===================================== */}
+
                   <button
                     type="button"
                     className="btn text-white fw-bold rounded-pill w-100 py-3 cart-checkout-button"
-                    style={{ backgroundColor: PURPLE }}
-                    onClick={handleCheckout}
+                    style={{
+                      backgroundColor:
+                        PURPLE,
+                    }}
+                    onClick={
+                      handleCheckout
+                    }
                     disabled={
                       checkingOut ||
                       applyingCoupon ||
-                      cart.items.length === 0 ||
-                      loadingAddresses
+                      cart.items.length ===
+                        0 ||
+                      loadingAddresses ||
+                      !selectedAddressId
                     }
                   >
                     {checkingOut
-                      ? paymentMethod === "COD"
+                      ? paymentMethod ===
+                        "COD"
                         ? "Placing Order..."
                         : "Opening Payment..."
-                      : paymentMethod === "COD"
+                      : paymentMethod ===
+                        "COD"
                       ? "Place Order — Cash on Delivery"
                       : "Pay Online & Place Order"}
                   </button>
@@ -2137,14 +2466,16 @@ function CustomerCart() {
                   </p>
 
                   <p className="small text-secondary text-center mt-2 mb-0">
-                    {paymentMethod === "COD"
+                    {paymentMethod ===
+                    "COD"
                       ? "No online payment is taken when placing a COD order."
                       : "You will continue to Razorpay Checkout to complete payment."}
                   </p>
 
                   {!selectedAddress && (
                     <p className="small text-danger mt-3 mb-0">
-                      Select or add a delivery address before checkout.
+                      Select a saved delivery
+                      address before checkout.
                     </p>
                   )}
                 </div>
