@@ -1,26 +1,110 @@
 package com.example.FoodXpress_backend.service;
 
-import jakarta.mail.MessagingException;
-import jakarta.mail.internet.MimeMessage;
+import java.net.URI;
+import java.net.http.HttpClient;
+import java.net.http.HttpRequest;
+import java.net.http.HttpResponse;
+import java.time.Duration;
 
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.mail.javamail.JavaMailSender;
-import org.springframework.mail.javamail.MimeMessageHelper;
 import org.springframework.stereotype.Service;
 
 @Service
 public class EmailService {
 
-    private final JavaMailSender mailSender;
+    @Value("${resend.api.key}")
+    private String resendApiKey;
 
-    @Value("${spring.mail.username}")
+    @Value("${resend.from.email:onboarding@resend.dev}")
     private String fromEmail;
 
-    @Value("${foodxpress.admin.email:${spring.mail.username}}")
+    @Value("${foodxpress.admin.email}")
     private String adminEmail;
 
-    public EmailService(JavaMailSender mailSender) {
-        this.mailSender = mailSender;
+    private final HttpClient httpClient;
+
+    public EmailService() {
+        this.httpClient = HttpClient.newBuilder()
+                .connectTimeout(Duration.ofSeconds(15))
+                .build();
+    }
+
+    // =========================================================
+    // RESEND EMAIL SENDER
+    // =========================================================
+
+    private void sendResendEmail(
+            String to,
+            String subject,
+            String html) {
+
+        try {
+
+            String jsonBody = """
+                    {
+                      "from": "%s",
+                      "to": ["%s"],
+                      "subject": "%s",
+                      "html": %s
+                    }
+                    """.formatted(
+                    escapeJson(fromEmail),
+                    escapeJson(to),
+                    escapeJson(subject),
+                    jsonString(html)
+            );
+
+            HttpRequest request = HttpRequest.newBuilder()
+                    .uri(URI.create("https://api.resend.com/emails"))
+                    .timeout(Duration.ofSeconds(30))
+                    .header("Authorization", "Bearer " + resendApiKey)
+                    .header("Content-Type", "application/json")
+                    .POST(HttpRequest.BodyPublishers.ofString(jsonBody))
+                    .build();
+
+            HttpResponse<String> response =
+                    httpClient.send(
+                            request,
+                            HttpResponse.BodyHandlers.ofString()
+                    );
+
+            if (response.statusCode() < 200 ||
+                    response.statusCode() >= 300) {
+
+                throw new RuntimeException(
+                        "Resend email failed. HTTP "
+                                + response.statusCode()
+                                + ": "
+                                + response.body()
+                );
+            }
+
+        } catch (Exception e) {
+
+            throw new RuntimeException(
+                    "Failed to send email through Resend.",
+                    e
+            );
+        }
+    }
+
+    private String escapeJson(String value) {
+
+        if (value == null) {
+            return "";
+        }
+
+        return value
+                .replace("\\", "\\\\")
+                .replace("\"", "\\\"")
+                .replace("\r", "\\r")
+                .replace("\n", "\\n")
+                .replace("\t", "\\t");
+    }
+
+    private String jsonString(String value) {
+
+        return "\"" + escapeJson(value) + "\"";
     }
 
     // =========================================================
@@ -32,158 +116,137 @@ public class EmailService {
             String customerName,
             String cartUrl) {
 
-        try {
-            MimeMessage message =
-                    mailSender.createMimeMessage();
+        String safeName =
+                customerName == null || customerName.isBlank()
+                        ? "Customer"
+                        : customerName;
 
-            MimeMessageHelper helper =
-                    new MimeMessageHelper(
-                            message,
-                            true,
-                            "UTF-8"
-                    );
+        String html = """
+                <!DOCTYPE html>
+                <html>
+                <head>
+                    <meta charset="UTF-8">
 
-            helper.setFrom(fromEmail);
-            helper.setTo(customerEmail);
+                    <style>
 
-            helper.setSubject(
-                    "Your Food Xpress cart is waiting for you ♨"
-            );
+                        body {
+                            margin: 0;
+                            padding: 0;
+                            background-color: #f5f1fa;
+                            font-family: Arial, sans-serif;
+                        }
 
-            String safeName =
-                    customerName == null || customerName.isBlank()
-                            ? "Customer"
-                            : customerName;
+                        .container {
+                            max-width: 600px;
+                            margin: 30px auto;
+                            background: white;
+                            border-radius: 12px;
+                            overflow: hidden;
+                            box-shadow:
+                                0 4px 15px rgba(0,0,0,0.08);
+                        }
 
-            String html = """
-                    <!DOCTYPE html>
-                    <html>
-                    <head>
-                        <meta charset="UTF-8">
+                        .header {
+                            background: #351078;
+                            color: white;
+                            padding: 25px;
+                            text-align: center;
+                        }
 
-                        <style>
+                        .brand {
+                            font-size: 28px;
+                            font-weight: bold;
+                        }
 
-                            body {
-                                margin: 0;
-                                padding: 0;
-                                background-color: #f5f1fa;
-                                font-family: Arial, sans-serif;
-                            }
+                        .content {
+                            padding: 30px;
+                            color: #333333;
+                        }
 
-                            .container {
-                                max-width: 600px;
-                                margin: 30px auto;
-                                background: white;
-                                border-radius: 12px;
-                                overflow: hidden;
-                                box-shadow:
-                                    0 4px 15px rgba(0,0,0,0.08);
-                            }
+                        .content h2 {
+                            color: #351078;
+                        }
 
-                            .header {
-                                background: #351078;
-                                color: white;
-                                padding: 25px;
-                                text-align: center;
-                            }
+                        .button {
+                            display: inline-block;
+                            margin-top: 20px;
+                            padding: 13px 24px;
+                            background: #641bc2;
+                            color: white !important;
+                            text-decoration: none;
+                            border-radius: 8px;
+                            font-weight: bold;
+                        }
 
-                            .brand {
-                                font-size: 28px;
-                                font-weight: bold;
-                            }
+                        .footer {
+                            padding: 20px;
+                            text-align: center;
+                            color: #777777;
+                            font-size: 13px;
+                            background: #fafafa;
+                        }
 
-                            .content {
-                                padding: 30px;
-                                color: #333333;
-                            }
+                    </style>
 
-                            .content h2 {
-                                color: #351078;
-                            }
+                </head>
 
-                            .button {
-                                display: inline-block;
-                                margin-top: 20px;
-                                padding: 13px 24px;
-                                background: #641bc2;
-                                color: white !important;
-                                text-decoration: none;
-                                border-radius: 8px;
-                                font-weight: bold;
-                            }
+                <body>
 
-                            .footer {
-                                padding: 20px;
-                                text-align: center;
-                                color: #777777;
-                                font-size: 13px;
-                                background: #fafafa;
-                            }
+                    <div class="container">
 
-                        </style>
-                    </head>
+                        <div class="header">
 
-                    <body>
-
-                        <div class="container">
-
-                            <div class="header">
-                                <div class="brand">
-                                    ♨ Food Xpress
-                                </div>
-                            </div>
-
-                            <div class="content">
-
-                                <h2>Hello %s,</h2>
-
-                                <p>
-                                    You have some delicious food waiting
-                                    in your Food Xpress cart.
-                                </p>
-
-                                <p>
-                                    You added items to your cart but
-                                    haven't completed your order yet.
-                                </p>
-
-                                <p>
-                                    Don't leave your food waiting!
-                                    Continue to your cart and complete
-                                    your order.
-                                </p>
-
-                                <a class="button" href="%s">
-                                    Complete Your Order
-                                </a>
-
-                            </div>
-
-                            <div class="footer">
-                                ♨ Food Xpress<br>
-                                Fresh food. Fast delivery.
+                            <div class="brand">
+                                ♨ Food Xpress
                             </div>
 
                         </div>
 
-                    </body>
-                    </html>
-                    """.formatted(
-                            safeName,
-                            cartUrl
-                    );
+                        <div class="content">
 
-            helper.setText(html, true);
+                            <h2>Hello %s,</h2>
 
-            mailSender.send(message);
+                            <p>
+                                You have some delicious food waiting
+                                in your Food Xpress cart.
+                            </p>
 
-        } catch (MessagingException e) {
+                            <p>
+                                You added items to your cart but
+                                haven't completed your order yet.
+                            </p>
 
-            throw new RuntimeException(
-                    "Failed to send abandoned cart reminder email.",
-                    e
-            );
-        }
+                            <p>
+                                Don't leave your food waiting!
+                                Continue to your cart and complete
+                                your order.
+                            </p>
+
+                            <a class="button" href="%s">
+                                Complete Your Order
+                            </a>
+
+                        </div>
+
+                        <div class="footer">
+                            ♨ Food Xpress<br>
+                            Fresh food. Fast delivery.
+                        </div>
+
+                    </div>
+
+                </body>
+                </html>
+                """.formatted(
+                safeName,
+                cartUrl
+        );
+
+        sendResendEmail(
+                customerEmail,
+                "Your Food Xpress cart is waiting for you ♨",
+                html
+        );
     }
 
     // =========================================================
@@ -196,221 +259,201 @@ public class EmailService {
             String phone,
             String cuisine) {
 
-        try {
-            MimeMessage message =
-                    mailSender.createMimeMessage();
+        String safeRestaurantName =
+                restaurantName == null || restaurantName.isBlank()
+                        ? "Restaurant"
+                        : restaurantName;
 
-            MimeMessageHelper helper =
-                    new MimeMessageHelper(
-                            message,
-                            true,
-                            "UTF-8"
-                    );
+        String safeEmail =
+                restaurantEmail == null || restaurantEmail.isBlank()
+                        ? "Not provided"
+                        : restaurantEmail;
 
-            helper.setFrom(fromEmail);
-            helper.setTo(adminEmail);
+        String safePhone =
+                phone == null || phone.isBlank()
+                        ? "Not provided"
+                        : phone;
 
-            helper.setSubject(
-                    "New Restaurant Approval Request - Food Xpress"
-            );
+        String safeCuisine =
+                cuisine == null || cuisine.isBlank()
+                        ? "Not provided"
+                        : cuisine;
 
-            String safeRestaurantName =
-                    restaurantName == null || restaurantName.isBlank()
-                            ? "Restaurant"
-                            : restaurantName;
+        String html = """
+                <!DOCTYPE html>
+                <html>
 
-            String safeEmail =
-                    restaurantEmail == null || restaurantEmail.isBlank()
-                            ? "Not provided"
-                            : restaurantEmail;
+                <head>
+                    <meta charset="UTF-8">
 
-            String safePhone =
-                    phone == null || phone.isBlank()
-                            ? "Not provided"
-                            : phone;
+                    <style>
 
-            String safeCuisine =
-                    cuisine == null || cuisine.isBlank()
-                            ? "Not provided"
-                            : cuisine;
+                        body {
+                            margin: 0;
+                            padding: 0;
+                            background-color: #f5f1fa;
+                            font-family: Arial, sans-serif;
+                        }
 
-            String html = """
-                    <!DOCTYPE html>
-                    <html>
+                        .container {
+                            max-width: 620px;
+                            margin: 30px auto;
+                            background: white;
+                            border-radius: 12px;
+                            overflow: hidden;
+                            box-shadow:
+                                0 4px 15px rgba(0,0,0,0.08);
+                        }
 
-                    <head>
-                        <meta charset="UTF-8">
+                        .header {
+                            background: #351078;
+                            color: white;
+                            padding: 25px;
+                            text-align: center;
+                        }
 
-                        <style>
+                        .brand {
+                            font-size: 28px;
+                            font-weight: bold;
+                        }
 
-                            body {
-                                margin: 0;
-                                padding: 0;
-                                background-color: #f5f1fa;
-                                font-family: Arial, sans-serif;
-                            }
+                        .content {
+                            padding: 30px;
+                            color: #333333;
+                        }
 
-                            .container {
-                                max-width: 620px;
-                                margin: 30px auto;
-                                background: white;
-                                border-radius: 12px;
-                                overflow: hidden;
-                                box-shadow:
-                                    0 4px 15px rgba(0,0,0,0.08);
-                            }
+                        .content h2 {
+                            color: #351078;
+                        }
 
-                            .header {
-                                background: #351078;
-                                color: white;
-                                padding: 25px;
-                                text-align: center;
-                            }
+                        .details {
+                            background: #f7f3fb;
+                            border-radius: 8px;
+                            padding: 20px;
+                            margin-top: 20px;
+                        }
 
-                            .brand {
-                                font-size: 28px;
-                                font-weight: bold;
-                            }
+                        .row {
+                            margin-bottom: 12px;
+                        }
 
-                            .content {
-                                padding: 30px;
-                                color: #333333;
-                            }
+                        .label {
+                            font-weight: bold;
+                            color: #351078;
+                        }
 
-                            .content h2 {
-                                color: #351078;
-                            }
+                        .status {
+                            display: inline-block;
+                            margin-top: 15px;
+                            padding: 8px 14px;
+                            border-radius: 20px;
+                            background: #fff3cd;
+                            color: #856404;
+                            font-weight: bold;
+                        }
 
-                            .details {
-                                background: #f7f3fb;
-                                border-radius: 8px;
-                                padding: 20px;
-                                margin-top: 20px;
-                            }
+                        .footer {
+                            padding: 20px;
+                            text-align: center;
+                            color: #777777;
+                            font-size: 13px;
+                            background: #fafafa;
+                        }
 
-                            .row {
-                                margin-bottom: 12px;
-                            }
+                    </style>
 
-                            .label {
-                                font-weight: bold;
-                                color: #351078;
-                            }
+                </head>
 
-                            .status {
-                                display: inline-block;
-                                margin-top: 15px;
-                                padding: 8px 14px;
-                                border-radius: 20px;
-                                background: #fff3cd;
-                                color: #856404;
-                                font-weight: bold;
-                            }
+                <body>
 
-                            .footer {
-                                padding: 20px;
-                                text-align: center;
-                                color: #777777;
-                                font-size: 13px;
-                                background: #fafafa;
-                            }
+                    <div class="container">
 
-                        </style>
-                    </head>
+                        <div class="header">
 
-                    <body>
-
-                        <div class="container">
-
-                            <div class="header">
-                                <div class="brand">
-                                    ♨ Food Xpress
-                                </div>
-                            </div>
-
-                            <div class="content">
-
-                                <h2>
-                                    New Restaurant Registration
-                                </h2>
-
-                                <p>
-                                    A new restaurant has registered
-                                    on Food Xpress and is waiting for
-                                    admin approval.
-                                </p>
-
-                                <div class="details">
-
-                                    <div class="row">
-                                        <span class="label">
-                                            Restaurant Name:
-                                        </span>
-                                        %s
-                                    </div>
-
-                                    <div class="row">
-                                        <span class="label">
-                                            Email:
-                                        </span>
-                                        %s
-                                    </div>
-
-                                    <div class="row">
-                                        <span class="label">
-                                            Phone:
-                                        </span>
-                                        %s
-                                    </div>
-
-                                    <div class="row">
-                                        <span class="label">
-                                            Cuisine:
-                                        </span>
-                                        %s
-                                    </div>
-
-                                    <div class="status">
-                                        PENDING APPROVAL
-                                    </div>
-
-                                </div>
-
-                                <p style="margin-top: 25px;">
-                                    Please log in to the Food Xpress
-                                    Admin Dashboard to review this
-                                    restaurant registration.
-                                </p>
-
-                            </div>
-
-                            <div class="footer">
-                                ♨ Food Xpress<br>
-                                Admin Notification
+                            <div class="brand">
+                                ♨ Food Xpress
                             </div>
 
                         </div>
 
-                    </body>
-                    </html>
-                    """.formatted(
-                            safeRestaurantName,
-                            safeEmail,
-                            safePhone,
-                            safeCuisine
-                    );
+                        <div class="content">
 
-            helper.setText(html, true);
+                            <h2>
+                                New Restaurant Registration
+                            </h2>
 
-            mailSender.send(message);
+                            <p>
+                                A new restaurant has registered
+                                on Food Xpress and is waiting for
+                                admin approval.
+                            </p>
 
-        } catch (MessagingException e) {
+                            <div class="details">
 
-            throw new RuntimeException(
-                    "Failed to send new restaurant registration email.",
-                    e
-            );
-        }
+                                <div class="row">
+                                    <span class="label">
+                                        Restaurant Name:
+                                    </span>
+                                    %s
+                                </div>
+
+                                <div class="row">
+                                    <span class="label">
+                                        Email:
+                                    </span>
+                                    %s
+                                </div>
+
+                                <div class="row">
+                                    <span class="label">
+                                        Phone:
+                                    </span>
+                                    %s
+                                </div>
+
+                                <div class="row">
+                                    <span class="label">
+                                        Cuisine:
+                                    </span>
+                                    %s
+                                </div>
+
+                                <div class="status">
+                                    PENDING APPROVAL
+                                </div>
+
+                            </div>
+
+                            <p style="margin-top: 25px;">
+                                Please log in to the Food Xpress
+                                Admin Dashboard to review this
+                                restaurant registration.
+                            </p>
+
+                        </div>
+
+                        <div class="footer">
+                            ♨ Food Xpress<br>
+                            Admin Notification
+                        </div>
+
+                    </div>
+
+                </body>
+
+                </html>
+                """.formatted(
+                safeRestaurantName,
+                safeEmail,
+                safePhone,
+                safeCuisine
+        );
+
+        sendResendEmail(
+                adminEmail,
+                "New Restaurant Approval Request - Food Xpress",
+                html
+        );
     }
 
     // =========================================================
@@ -425,254 +468,234 @@ public class EmailService {
             String vehicleNumber,
             String licenseNumber) {
 
-        try {
-            MimeMessage message =
-                    mailSender.createMimeMessage();
+        String safeName =
+                fullName == null || fullName.isBlank()
+                        ? "Delivery Partner"
+                        : fullName;
 
-            MimeMessageHelper helper =
-                    new MimeMessageHelper(
-                            message,
-                            true,
-                            "UTF-8"
-                    );
+        String safeEmail =
+                email == null || email.isBlank()
+                        ? "Not provided"
+                        : email;
 
-            helper.setFrom(fromEmail);
-            helper.setTo(adminEmail);
+        String safePhone =
+                phone == null || phone.isBlank()
+                        ? "Not provided"
+                        : phone;
 
-            helper.setSubject(
-                    "New Delivery Partner Approval Request - Food Xpress"
-            );
+        String safeVehicleType =
+                vehicleType == null || vehicleType.isBlank()
+                        ? "Not provided"
+                        : vehicleType;
 
-            String safeName =
-                    fullName == null || fullName.isBlank()
-                            ? "Delivery Partner"
-                            : fullName;
+        String safeVehicleNumber =
+                vehicleNumber == null || vehicleNumber.isBlank()
+                        ? "Not provided"
+                        : vehicleNumber;
 
-            String safeEmail =
-                    email == null || email.isBlank()
-                            ? "Not provided"
-                            : email;
+        String safeLicenseNumber =
+                licenseNumber == null || licenseNumber.isBlank()
+                        ? "Not provided"
+                        : licenseNumber;
 
-            String safePhone =
-                    phone == null || phone.isBlank()
-                            ? "Not provided"
-                            : phone;
+        String html = """
+                <!DOCTYPE html>
+                <html>
 
-            String safeVehicleType =
-                    vehicleType == null || vehicleType.isBlank()
-                            ? "Not provided"
-                            : vehicleType;
+                <head>
+                    <meta charset="UTF-8">
 
-            String safeVehicleNumber =
-                    vehicleNumber == null || vehicleNumber.isBlank()
-                            ? "Not provided"
-                            : vehicleNumber;
+                    <style>
 
-            String safeLicenseNumber =
-                    licenseNumber == null || licenseNumber.isBlank()
-                            ? "Not provided"
-                            : licenseNumber;
+                        body {
+                            margin: 0;
+                            padding: 0;
+                            background-color: #f5f1fa;
+                            font-family: Arial, sans-serif;
+                        }
 
-            String html = """
-                    <!DOCTYPE html>
-                    <html>
+                        .container {
+                            max-width: 620px;
+                            margin: 30px auto;
+                            background: white;
+                            border-radius: 12px;
+                            overflow: hidden;
+                            box-shadow:
+                                0 4px 15px rgba(0,0,0,0.08);
+                        }
 
-                    <head>
-                        <meta charset="UTF-8">
+                        .header {
+                            background: #351078;
+                            color: white;
+                            padding: 25px;
+                            text-align: center;
+                        }
 
-                        <style>
+                        .brand {
+                            font-size: 28px;
+                            font-weight: bold;
+                        }
 
-                            body {
-                                margin: 0;
-                                padding: 0;
-                                background-color: #f5f1fa;
-                                font-family: Arial, sans-serif;
-                            }
+                        .content {
+                            padding: 30px;
+                            color: #333333;
+                        }
 
-                            .container {
-                                max-width: 620px;
-                                margin: 30px auto;
-                                background: white;
-                                border-radius: 12px;
-                                overflow: hidden;
-                                box-shadow:
-                                    0 4px 15px rgba(0,0,0,0.08);
-                            }
+                        .content h2 {
+                            color: #351078;
+                        }
 
-                            .header {
-                                background: #351078;
-                                color: white;
-                                padding: 25px;
-                                text-align: center;
-                            }
+                        .details {
+                            background: #f7f3fb;
+                            border-radius: 8px;
+                            padding: 20px;
+                            margin-top: 20px;
+                        }
 
-                            .brand {
-                                font-size: 28px;
-                                font-weight: bold;
-                            }
+                        .row {
+                            margin-bottom: 12px;
+                        }
 
-                            .content {
-                                padding: 30px;
-                                color: #333333;
-                            }
+                        .label {
+                            font-weight: bold;
+                            color: #351078;
+                        }
 
-                            .content h2 {
-                                color: #351078;
-                            }
+                        .status {
+                            display: inline-block;
+                            margin-top: 15px;
+                            padding: 8px 14px;
+                            border-radius: 20px;
+                            background: #fff3cd;
+                            color: #856404;
+                            font-weight: bold;
+                        }
 
-                            .details {
-                                background: #f7f3fb;
-                                border-radius: 8px;
-                                padding: 20px;
-                                margin-top: 20px;
-                            }
+                        .notice {
+                            margin-top: 20px;
+                            padding: 15px;
+                            background: #f5f1fa;
+                            border-radius: 8px;
+                            font-size: 14px;
+                        }
 
-                            .row {
-                                margin-bottom: 12px;
-                            }
+                        .footer {
+                            padding: 20px;
+                            text-align: center;
+                            color: #777777;
+                            font-size: 13px;
+                            background: #fafafa;
+                        }
 
-                            .label {
-                                font-weight: bold;
-                                color: #351078;
-                            }
+                    </style>
 
-                            .status {
-                                display: inline-block;
-                                margin-top: 15px;
-                                padding: 8px 14px;
-                                border-radius: 20px;
-                                background: #fff3cd;
-                                color: #856404;
-                                font-weight: bold;
-                            }
+                </head>
 
-                            .notice {
-                                margin-top: 20px;
-                                padding: 15px;
-                                background: #f5f1fa;
-                                border-radius: 8px;
-                                font-size: 14px;
-                            }
+                <body>
 
-                            .footer {
-                                padding: 20px;
-                                text-align: center;
-                                color: #777777;
-                                font-size: 13px;
-                                background: #fafafa;
-                            }
+                    <div class="container">
 
-                        </style>
-                    </head>
+                        <div class="header">
 
-                    <body>
-
-                        <div class="container">
-
-                            <div class="header">
-                                <div class="brand">
-                                    ♨ Food Xpress
-                                </div>
-                            </div>
-
-                            <div class="content">
-
-                                <h2>
-                                    New Delivery Partner Registration
-                                </h2>
-
-                                <p>
-                                    A new delivery partner has registered
-                                    on Food Xpress and is waiting for
-                                    admin approval.
-                                </p>
-
-                                <div class="details">
-
-                                    <div class="row">
-                                        <span class="label">
-                                            Full Name:
-                                        </span>
-                                        %s
-                                    </div>
-
-                                    <div class="row">
-                                        <span class="label">
-                                            Email:
-                                        </span>
-                                        %s
-                                    </div>
-
-                                    <div class="row">
-                                        <span class="label">
-                                            Phone:
-                                        </span>
-                                        %s
-                                    </div>
-
-                                    <div class="row">
-                                        <span class="label">
-                                            Vehicle Type:
-                                        </span>
-                                        %s
-                                    </div>
-
-                                    <div class="row">
-                                        <span class="label">
-                                            Vehicle Number:
-                                        </span>
-                                        %s
-                                    </div>
-
-                                    <div class="row">
-                                        <span class="label">
-                                            License Number:
-                                        </span>
-                                        %s
-                                    </div>
-
-                                    <div class="status">
-                                        PENDING APPROVAL
-                                    </div>
-
-                                </div>
-
-                                <div class="notice">
-                                    Please log in to the Food Xpress
-                                    Admin Dashboard to review and approve
-                                    or reject this delivery partner.
-                                </div>
-
-                            </div>
-
-                            <div class="footer">
-                                ♨ Food Xpress<br>
-                                Admin Notification
+                            <div class="brand">
+                                ♨ Food Xpress
                             </div>
 
                         </div>
 
-                    </body>
-                    </html>
-                    """.formatted(
-                            safeName,
-                            safeEmail,
-                            safePhone,
-                            safeVehicleType,
-                            safeVehicleNumber,
-                            safeLicenseNumber
-                    );
+                        <div class="content">
 
-            helper.setText(html, true);
+                            <h2>
+                                New Delivery Partner Registration
+                            </h2>
 
-            mailSender.send(message);
+                            <p>
+                                A new delivery partner has registered
+                                on Food Xpress and is waiting for
+                                admin approval.
+                            </p>
 
-        } catch (MessagingException e) {
+                            <div class="details">
 
-            throw new RuntimeException(
-                    "Failed to send new delivery partner registration email.",
-                    e
-            );
-        }
+                                <div class="row">
+                                    <span class="label">
+                                        Full Name:
+                                    </span>
+                                    %s
+                                </div>
+
+                                <div class="row">
+                                    <span class="label">
+                                        Email:
+                                    </span>
+                                    %s
+                                </div>
+
+                                <div class="row">
+                                    <span class="label">
+                                        Phone:
+                                    </span>
+                                    %s
+                                </div>
+
+                                <div class="row">
+                                    <span class="label">
+                                        Vehicle Type:
+                                    </span>
+                                    %s
+                                </div>
+
+                                <div class="row">
+                                    <span class="label">
+                                        Vehicle Number:
+                                    </span>
+                                    %s
+                                </div>
+
+                                <div class="row">
+                                    <span class="label">
+                                        License Number:
+                                    </span>
+                                    %s
+                                </div>
+
+                                <div class="status">
+                                    PENDING APPROVAL
+                                </div>
+
+                            </div>
+
+                            <div class="notice">
+                                Please log in to the Food Xpress
+                                Admin Dashboard to review and approve
+                                or reject this delivery partner.
+                            </div>
+
+                        </div>
+
+                        <div class="footer">
+                            ♨ Food Xpress<br>
+                            Admin Notification
+                        </div>
+
+                    </div>
+
+                </body>
+
+                </html>
+                """.formatted(
+                safeName,
+                safeEmail,
+                safePhone,
+                safeVehicleType,
+                safeVehicleNumber,
+                safeLicenseNumber
+        );
+
+        sendResendEmail(
+                adminEmail,
+                "New Delivery Partner Approval Request - Food Xpress",
+                html
+        );
     }
 }
